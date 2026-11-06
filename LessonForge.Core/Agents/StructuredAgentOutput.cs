@@ -178,8 +178,11 @@ public static class StructuredAgentOutput
                 missing[missing.IndexOf(requiredArray)] = $"{requiredArray} ({detail})";
             }
 
+            var kind = value is FactCheckReviewOutput
+                ? "review fields"
+                : "lesson content or citation arrays";
             throw new InvalidOperationException(
-                $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
+                $"{stage} returned valid JSON but omitted required {kind}. " +
                 $"Missing or invalid fields: {string.Join(", ", missing)}. " +
                 "The result was rejected rather than treating an empty payload as successful.");
         }
