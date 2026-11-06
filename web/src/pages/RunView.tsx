@@ -85,6 +85,9 @@ export default function RunView() {
         </p>
       )}
       <StageTimeline statuses={statuses} />
+      {progressMessage && !error && !aborted && (
+        <p className="muted" role="status" aria-live="polite">{progressMessage}</p>
+      )}
 
       {error && <p className="error" style={{ marginTop: 16 }}>Error: {error}</p>}
       {aborted && <p style={{ marginTop: 16 }}>{aborted}</p>}
