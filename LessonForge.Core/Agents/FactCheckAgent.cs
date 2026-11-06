@@ -37,8 +37,8 @@ public static partial class FactCheckAgent
         Output only valid JSON matching the VerifiedLessonOutput schema.
         """;
 
-    public static AIAgent CreateAgent(IChatClient chatClient)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
+    public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class FactCheckExecutor(AIAgent agent, RagContext rag) : Executor("FactCheck")
     {
