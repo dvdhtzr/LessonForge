@@ -61,14 +61,20 @@ public class DtoAndExportTests
         Assert.DoesNotContain("explanation", studentJson);
     }
 
-    [Fact]
-    public void Pdf_export_produces_a_pdf()
+    [Theory]
+    [InlineData(Audience.Teacher)]
+    [InlineData(Audience.Student)]
+    public void Pdf_export_produces_a_pdf_for_each_audience(Audience audience)
     {
+        // Rendering both variants detects unsupported font glyphs and layout failures.
+        // In particular, the teacher's correct-answer marker must work using
+        // QuestPDF's bundled Lato font (no system font fallback required).
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
-        var pdf = LessonExporter.Export(View(), ExportFormat.Pdf, Audience.Teacher);
+        var pdf = LessonExporter.Export(View(), ExportFormat.Pdf, audience);
         Assert.Equal("application/pdf", pdf.ContentType);
         Assert.True(pdf.Content.Length > 500);
         Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
+        Assert.EndsWith(".pdf", pdf.FileName);
     }
 
     private static StoredLessonView View()
