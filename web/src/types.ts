@@ -102,7 +102,22 @@ export interface VerificationFlag {
   evidence?: string
 }
 
+export interface SourceEvidenceRecord {
+  provider_id: string
+  canonical_id: string
+  title: string
+  url: string
+  license_id: string
+  policy_url: string
+  attribution: string
+  rights_scope: string
+  rights_reviewed_on: string
+  retrieved_at_utc: string
+  document_sha256: string
+}
+
 export interface VerifiedLessonOutput {
+  source_records?: SourceEvidenceRecord[]
   plan: LessonPlanOutput
   quiz: QuizOutput
   perspectives?: PerspectiveAnalysisOutput | null
