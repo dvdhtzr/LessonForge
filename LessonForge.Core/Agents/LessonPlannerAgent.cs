@@ -69,7 +69,7 @@ public static partial class LessonPlannerAgent
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
-                $"{i + 1}. {f.Statement} [sources: {string.Join(", ", f.Citations.Select(c => c.Url))}]"));
+                $"{i + 1}. {f.Statement} [sources: {string.Join("; ", f.Citations.Select(c => $"{c.Title} ({c.Url})"))}]"));
 
             var prompt = $"""
                 Design a lesson plan for this audience.
@@ -117,7 +117,9 @@ public static partial class LessonPlannerAgent
 
             if (string.IsNullOrWhiteSpace(output.GradeBand))
                 output.GradeBand = gradeBand;
-            if (output.Citations.Count == 0)
+            // Use the researched inventory if the model omitted its source list.
+            // The inventory was collected by the retrieval system, not fabricated by an LLM.
+            if (output.Citations is not { Count: > 0 })
                 output.Citations = research.SourceInventory;
 
             state.Plan = output;
