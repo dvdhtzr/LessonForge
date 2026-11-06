@@ -44,6 +44,8 @@ public sealed class LessonRunService(
     {
         var session = new RunSession { RunId = Guid.NewGuid().ToString("n")[..12] };
         _runs[session.RunId] = session;
+        logger.LogInformation("Starting lesson run {RunId} for {Topic} (age {AudienceAge}, interactive: {Interactive})",
+            session.RunId, request.Topic, request.AudienceAge, interactive);
         _ = Task.Run(() => DriveAsync(session, request, interactive));
         return session;
     }
@@ -89,14 +91,18 @@ public sealed class LessonRunService(
                 switch (evt)
                 {
                     case ExecutorInvokedEvent invoked when LessonWorkflow.StageOrder.Contains(invoked.ExecutorId):
+                        logger.LogInformation("Lesson run {RunId}: stage {Stage} started", session.RunId, invoked.ExecutorId);
                         await WriteAsync(session, "stage", new { name = invoked.ExecutorId, status = "started" });
                         break;
 
                     case ExecutorCompletedEvent completed when LessonWorkflow.StageOrder.Contains(completed.ExecutorId):
+                        logger.LogInformation("Lesson run {RunId}: stage {Stage} completed", session.RunId, completed.ExecutorId);
                         await WriteAsync(session, "stage", new { name = completed.ExecutorId, status = "completed" });
                         break;
 
                     case ExecutorFailedEvent failed:
+                        logger.LogError("Lesson run {RunId}: stage {Stage} failed: {Message}",
+                            session.RunId, failed.ExecutorId, failed.Data?.Message);
                         await WriteAsync(session, "stage", new { name = failed.ExecutorId, status = "failed", message = failed.Data?.Message });
                         break;
 
@@ -113,6 +119,7 @@ public sealed class LessonRunService(
             if (result is not null)
             {
                 var id = await PersistAsync(request, result, ct);
+                logger.LogInformation("Lesson run {RunId} completed; saved lesson {LessonId}", session.RunId, id);
                 await WriteAsync(session, "complete", new { id, result });
             }
             else if (!ct.IsCancellationRequested)
@@ -122,6 +129,7 @@ public sealed class LessonRunService(
         }
         catch (OperationCanceledException)
         {
+            logger.LogInformation("Lesson run {RunId} cancelled", session.RunId);
             await WriteAsync(session, "aborted", new { message = "Run cancelled." });
         }
         catch (Exception ex)
@@ -167,10 +175,13 @@ public sealed class LessonRunService(
         var tcs = new TaskCompletionSource<GateDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         session.Gates[request.RequestId] = tcs;
 
+        logger.LogInformation("Lesson run {RunId}: awaiting {Stage} approval", session.RunId, stage);
         await WriteAsync(session, "gate", new { requestId = request.RequestId, stage, payload });
 
         using var reg = ct.Register(() => tcs.TrySetCanceled());
         var decision = await tcs.Task;
+        logger.LogInformation("Lesson run {RunId}: {Stage} gate {Decision}",
+            session.RunId, stage, decision.Approved ? "approved" : "rejected");
 
         if (!decision.Approved)
         {
