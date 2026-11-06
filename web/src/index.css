@@ -302,3 +302,18 @@ section h3 { margin-bottom: 4px; }
 @media (prefers-reduced-motion: reduce) {
   .agent-board__indicator--live, .dot.started { animation: none; }
 }
+
+/* Research inventory is collapsed by default to avoid a second long page
+   of source links, while keeping teacher provenance one click away. */
+.source-library > summary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  cursor: pointer; font: 700 19px/1.4 Georgia, "Times New Roman", serif;
+  color: var(--accent-dark);
+}
+.source-library > summary:focus-visible { outline: 3px solid var(--highlight); outline-offset: 4px; }
+.source-library .source-list { margin-top: 12px; }
+.source-library__meta {
+  display: flex; flex-direction: column; gap: 2px; margin: 9px 0 0 44px;
+  font-size: 12px; line-height: 1.35; color: var(--muted);
+  overflow-wrap: anywhere;
+}
