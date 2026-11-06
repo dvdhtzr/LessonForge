@@ -13,7 +13,7 @@ public sealed class AccuracyReviewBatcherTests
 
         Assert.Equal(5, scopes.Count);
         Assert.Equal(
-            ["S1, S2", "S3, S4", "S5", "Q1, Q2", "Q3"],
+            new[] { "S1, S2", "S3, S4", "S5", "Q1, Q2", "Q3" },
             scopes.Select(s => s.Label).ToArray());
         Assert.Equal(8, scopes.Sum(s => s.ItemCount));
     }
@@ -33,7 +33,7 @@ public sealed class AccuracyReviewBatcherTests
                     isSingle ? 0.2 : 0.8));
             });
 
-        Assert.Equal(["S1, S2", "S3", "Q1, Q2"], calls);
+        Assert.Equal(new[] { "S1, S2", "S3", "Q1, Q2" }, calls);
         Assert.Equal(3, result.Flags.Count);
         Assert.Equal(0.68, result.CitationCoverage, precision: 8);
         Assert.Contains("S3", result.Notes);
@@ -55,7 +55,7 @@ public sealed class AccuracyReviewBatcherTests
                 return Task.FromResult(Review(scope.Label, 0.5));
             });
 
-        Assert.Equal(["S1, S2", "S1", "S2", "Q1"], calls);
+        Assert.Equal(new[] { "S1, S2", "S1", "S2", "Q1" }, calls);
         Assert.Equal(3, result.Flags.Count);
         Assert.DoesNotContain(result.Flags, f => f.Claim.Contains("partial"));
     }
@@ -73,7 +73,7 @@ public sealed class AccuracyReviewBatcherTests
             }));
 
         Assert.Contains("output was truncated", error.Message);
-        Assert.Equal(["S1"], calls);
+        Assert.Equal(new[] { "S1" }, calls);
     }
 
     [Fact]
@@ -109,6 +109,21 @@ public sealed class AccuracyReviewBatcherTests
         Assert.Contains("S6:", prompt);
         Assert.Contains("SOURCE EXCERPT", prompt);
         Assert.DoesNotContain("TARGET ITEMS (audit ONLY these identifiers):\nQ1:", prompt);
+        Assert.True(prompt.Length < 6500);
+    }
+
+    [Fact]
+    public void ScopedPrompt_HugeLessonMapIsCappedWithoutHidingTarget()
+    {
+        var plan = Plan(100);
+        var quiz = Quiz(1);
+        var scope = AccuracyReviewBatcher.Plan(plan, quiz)[49]; // S99 and S100
+        var prompt = FactCheckAgent.BuildScopedReviewPrompt(
+            plan, quiz, null, "SOURCE EXCERPT", scope, audienceAge: 12);
+
+        Assert.Contains("Review ONLY S99, S100", prompt);
+        Assert.Contains("S100:", prompt);
+        Assert.Contains("additional lesson sections omitted", prompt);
         Assert.True(prompt.Length < 6500);
     }
 
