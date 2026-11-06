@@ -20,9 +20,9 @@ topic into a citation-backed lesson plan and quiz. Built with **React 19 + TypeS
 ## Running it locally
 
 Follow the [repository setup guide](../README.md) to install the .NET 10 SDK, Node.js,
-Ollama and the configured models. On Windows, run `scripts/setup.ps1` and
-`scripts/start.ps1` from the repository root; the scripts launch the API and frontend
-without requiring environment variables.
+Ollama and the configured models. On Windows, run `.\scripts\start.ps1` from the repository root. That single
+command starts Ollama if necessary, installs missing models/dependencies, and launches the
+API and frontend without requiring environment variables.
 
 To run just the frontend manually, start the API on `http://localhost:5174`,
 then run:

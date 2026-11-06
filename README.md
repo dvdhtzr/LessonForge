@@ -59,30 +59,35 @@ Install these prerequisites once:
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (the SDK, not just the runtime)
 - [Node.js 22.12+ or 24+](https://nodejs.org/)
-- [Ollama for Windows](https://ollama.com/download/windows); launch the Ollama application
+- [Ollama for Windows](https://ollama.com/download/windows); the startup script launches its service if needed
 - Git
 
-Clone the repository, then run these commands in **PowerShell** from the repository root
-(with no existing API/Vite servers running):
+After installing the prerequisites, clone the repository and start it with
+**one PowerShell command from the repository root**, with no old API/Vite servers running:
 
 ```powershell
 git clone https://github.com/dvdhtzr/LessonForge.git
 cd LessonForge
-.\scripts\setup.ps1
 .\scripts\start.ps1
 ```
 
-`setup.ps1` checks for the SDK and Node.js, checks that Ollama is running,
-reads the committed chat and embedding model names from `appsettings.json`,
-**downloads any missing Ollama models** (the download may be several gigabytes),
-and runs the full local build/test/lint verification gate. It does not install
-the .NET SDK, Node.js, or the Ollama application itself.
+On each run, `start.ps1` checks the .NET SDK and Node.js versions, starts the Ollama
+server if it is not already running, checks the committed `ChatModel` and
+`EmbeddingModel`, downloads any missing Ollama models (several gigabytes on the
+first run), and installs frontend dependencies if missing or changed. It launches
+the API and Vite in separate terminals, waits until both are available, then
+opens **http://localhost:5173** automatically. Model downloads may require internet.
 
-`start.ps1` verifies the required models exist and opens separate PowerShell
-terminals for the API and Vite. Open **http://localhost:5173** when Vite reports
-ready. Keep both terminals open while using the application. Close them to stop
-the local servers. Ollama for Windows normally runs its own local service; do
-not start a second `ollama serve` if the application is already running.
+If you prefer to run full local verification before starting, use
+`.\scripts\setup.ps1` separately.
+That script checks prerequisites, pulls models and runs build, xUnit, lint and
+frontend production-build checks. The startup script avoids running the entire
+verification gate on every launch.
+
+Keep the API and Vite terminals open while using LessonForge; the Ollama terminal
+will appear only if the Ollama service wasn't already running. Close or Ctrl+C
+in the terminals to stop each server. The launcher refuses to start if ports
+5173 or 5174 are already in use, rather than silently starting duplicate servers.
 
 **No `$env:` settings, secrets, API keys, or external model subscriptions are required.**
 
@@ -204,7 +209,8 @@ Dependency restore/install may still require internet access.
 | `scripts/check.ps1` | Run the complete local gate; fail on any nonzero .NET/npm exit |
 | `scripts/ollama-prerequisites.ps1` | Validate that Ollama and the configured models are available |
 | `scripts/setup.ps1` | Initial Windows setup: check tools, pull missing models, run verification |
-| `scripts/start.ps1` | Start API and web frontend in separate PowerShell terminals |
+| `scripts/start.ps1` | Single command: check prerequisites, start Ollama, pull missing models, prepare web dependencies, start API/frontend, open browser |
+| `scripts/run-ollama.ps1` | Start Ollama service in a dedicated terminal when absent |
 
 The `*.sh` equivalents run the same checks. A successful check prints
 `==> All local checks passed.` and must not do so if a command fails.
