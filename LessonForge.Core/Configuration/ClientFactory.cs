@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using OpenAI;
