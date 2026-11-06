@@ -13,6 +13,7 @@ export default function NewLesson() {
   const [optionCount, setOptionCount] = useState(4)
   const [difficulty, setDifficulty] = useState('auto')
   const [interactive, setInteractive] = useState(true)
+  const [explorePerspectives, setExplorePerspectives] = useState(false)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -20,6 +21,7 @@ export default function NewLesson() {
       topic: topic.trim(),
       audience_age: age,
       audience_notes: notes.trim(),
+      explore_perspectives: explorePerspectives,
       quiz_config: { question_count: questionCount, option_count: optionCount, difficulty },
     }
     navigate('/run', { state: { request, interactive } })
@@ -78,6 +80,19 @@ export default function NewLesson() {
       <textarea id="notes" value={notes}
         placeholder="e.g. They've already covered cells. Keep it hands-on. Include a group activity."
         onChange={(e) => setNotes(e.target.value)} />
+
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 20 }}>
+        <input type="checkbox" style={{ width: 'auto', marginTop: 3 }} checked={explorePerspectives}
+          onChange={(e) => setExplorePerspectives(e.target.checked)} />
+        <span>
+          <strong>Explore differing perspectives</strong>
+          <span className="hint" style={{ display: 'block' }}>
+            Optional: a Perspective Analyst examines credible interpretations and their evidence.
+            Not every topic has a meaningful debate; unsupported claims won't be given equal weight.
+            With educator review enabled, you can approve or edit the findings before the lesson is written.
+          </span>
+        </span>
+      </label>
 
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 20 }}>
         <input type="checkbox" style={{ width: 'auto', marginTop: 3 }} checked={interactive}
