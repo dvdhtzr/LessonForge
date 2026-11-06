@@ -1,5 +1,7 @@
+using System.Text.Json;
 using LessonForge.Core.Agents;
 using LessonForge.Core.Dto;
+using Microsoft.Extensions.AI;
 using Xunit;
 
 namespace LessonForge.Tests;
@@ -107,6 +109,89 @@ public sealed class StructuredAgentOutputTests
         Assert.Equal("A short summary.", result.TopicSummary);
         Assert.Single(result.GroundedFacts);
         Assert.Equal("https://example.org/source", result.GroundedFacts[0].Citations[0].Url);
+    }
+
+    [Fact]
+    public void CurriculumDesignerSchema_ContainsRequiredWireFieldNames()
+    {
+        // Unlike ChatResponseFormat.Json, this sends an actual DTO schema to a
+        // provider that supports structured response formats.
+        var format = ChatResponseFormat.ForJsonSchema<LessonPlanOutput>(
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var schema = Assert.IsType<ChatResponseFormatJson>(format).Schema;
+        Assert.True(schema.HasValue);
+        var json = schema.Value.GetRawText();
+        Assert.Contains("\"sections\"", json);
+        Assert.Contains("\"learning_objectives\"", json);
+        Assert.Contains("\"duration_minutes\"", json);
+        Assert.Contains("\"citations\"", json);
+    }
+
+    [Fact]
+    public void PlannerWrongFieldNames_ReportsMissingFields()
+    {
+        const string json = """
+            {
+              "title":"The French Revolution",
+              "overview":"A useful overview.",
+              "objectives":["Explore the causes."],
+              "lesson_sections":[{"heading":"Events","text":"A paragraph."}]
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<LessonPlanOutput>(json, "LessonPlanner", "stop"));
+
+        Assert.Contains("learning_objectives", error.Message);
+        Assert.Contains("sections", error.Message);
+        Assert.DoesNotContain("The French Revolution", error.Message);
+    }
+
+    [Fact]
+    public void PlannerWithSectionMissingBody_IsRejected()
+    {
+        const string json = """
+            {
+              "title":"The French Revolution",
+              "overview":"A useful overview.",
+              "learning_objectives":["Explain the causes."],
+              "sections":[{"title":"The beginning","activities":["Discuss the causes"],"duration_minutes":15}]
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<LessonPlanOutput>(json, "LessonPlanner", "stop"));
+
+        Assert.Contains("sections[0].body", error.Message);
+    }
+
+    [Fact]
+    public void PlannerCompleteShape_ParsesAndPreservesAllSections()
+    {
+        const string json = """
+            {
+              "title":"The French Revolution",
+              "grade_band":"Grade 7",
+              "overview":"A concise introduction.",
+              "learning_objectives":["Identify one cause of the revolution."],
+              "sections":[{
+                "title":"Background",
+                "body":"A short, grounded explanation of historical conditions.",
+                "activities":["Discuss one cause"],
+                "duration_minutes":15
+              }],
+              "vocabulary":[{"term":"Estates","definition":"Social divisions."}],
+              "materials":["Map"],
+              "citations":[{"title":"Encyclopedia","url":"https://example.org/source"}]
+            }
+            """;
+
+        var plan = StructuredAgentOutput.Parse<LessonPlanOutput>(json, "LessonPlanner", "stop");
+        Assert.Equal("The French Revolution", plan.Title);
+        Assert.Single(plan.Sections);
+        Assert.Equal("Background", plan.Sections[0].Title);
+        Assert.Equal("A short, grounded explanation of historical conditions.", plan.Sections[0].Body);
+        Assert.Single(plan.Citations);
     }
 
     [Fact]
