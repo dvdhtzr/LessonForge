@@ -112,6 +112,54 @@ public sealed class StructuredAgentOutputTests
     }
 
     [Fact]
+    public void ResearchSchema_RequiresGroundedFactsAndCitationFields()
+    {
+        var format = ChatResponseFormat.ForJsonSchema<ResearchOutput>(
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var schema = Assert.IsType<ChatResponseFormatJson>(format).Schema;
+        Assert.True(schema.HasValue);
+        var json = schema.Value.GetRawText();
+
+        Assert.Contains("\"topic_summary\"", json);
+        Assert.Contains("\"grounded_facts\"", json);
+        Assert.Contains("\"statement\"", json);
+        Assert.Contains("\"citations\"", json);
+        Assert.Contains("\"url\"", json);
+    }
+
+    [Fact]
+    public void ResearchMissingFacts_DiagnosesAbsentPropertyWithoutLeakingText()
+    {
+        const string response = """
+            {
+              "topic_summary":"A private teacher summary",
+              "facts":[{"statement":"A private statement"}],
+              "source_inventory":[]
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchOutput>(response, "Research", "stop"));
+
+        Assert.Contains("grounded_facts (property absent)", error.Message);
+        Assert.DoesNotContain("A private teacher summary", error.Message);
+        Assert.DoesNotContain("A private statement", error.Message);
+    }
+
+    [Fact]
+    public void ResearchEmptyFacts_DiagnosesEmptyArray()
+    {
+        const string response = """
+            {"topic_summary":"Summary","grounded_facts":[],"queries_used":[],"source_inventory":[]}
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchOutput>(response, "Research", "stop"));
+
+        Assert.Contains("grounded_facts (empty array)", error.Message);
+    }
+
+    [Fact]
     public void CurriculumDesignerSchema_ContainsRequiredWireFieldNames()
     {
         // Unlike ChatResponseFormat.Json, this sends an actual DTO schema to a
