@@ -30,7 +30,11 @@ export default function RunView() {
       if (controller.signal.aborted) return
       void generate(state.request, state.interactive, {
         onRun: (e) => { runIdRef.current = e.runId; setRunConnected(true) },
-        onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
+        onStage: (e) => {
+          setStatuses((prev) => ({ ...prev, [e.name]: e.status }))
+          if (e.name !== 'Research' || e.status !== 'started') setProgressMessage(null)
+        },
+        onProgress: (e) => setProgressMessage(e.message),
         onGate: (e) => setGate(e),
         onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
         onError: (m) => setError(m),
