@@ -178,9 +178,12 @@ public static class StructuredAgentOutput
                 missing[missing.IndexOf(requiredArray)] = $"{requiredArray} ({detail})";
             }
 
-            var kind = value is FactCheckReviewOutput
-                ? "review fields"
-                : "lesson content or citation arrays";
+            var kind = value switch
+            {
+                FactCheckReviewOutput => "review fields",
+                ResearchSummaryRepairOutput => "research summary",
+                _ => "lesson content or citation arrays"
+            };
             throw new InvalidOperationException(
                 $"{stage} returned valid JSON but omitted required {kind}. " +
                 $"Missing or invalid fields: {string.Join(", ", missing)}. " +
