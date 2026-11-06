@@ -6,6 +6,7 @@ import PlanRenderer from '../components/PlanRenderer'
 import QuizRenderer from '../components/QuizRenderer'
 import PerspectivePanel from '../components/PerspectivePanel'
 import AccuracyReview from '../components/AccuracyReview'
+import SourceLibrary from '../components/SourceLibrary'
 
 type Tab = 'plan' | 'quiz'
 
@@ -68,6 +69,8 @@ export default function LessonView() {
           />
         </div>
       )}
+
+      {audience === 'teacher' && <SourceLibrary records={result.source_records ?? []} />}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Export</h3>

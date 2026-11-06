@@ -1,4 +1,5 @@
 import type { CitationRef, PerspectiveAnalysisOutput } from '../types'
+import SourceLink from './SourceLink'
 
 function Sources({ citations }: { citations: CitationRef[] }) {
   if (!Array.isArray(citations) || citations.length === 0) return <span className="error">No source provided</span>
@@ -7,9 +8,7 @@ function Sources({ citations }: { citations: CitationRef[] }) {
       {citations.map((source, index) => (
         <span key={index}>
           {index > 0 ? ' · ' : ''}
-          <a href={source.url} target="_blank" rel="noopener noreferrer">
-            {source.title || source.url}
-          </a>
+          <SourceLink citation={source} compact />
         </span>
       ))}
     </span>

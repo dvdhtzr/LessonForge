@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CitationRef, GateEvent, GroundedFact, LessonPlanOutput, ResearchOutput } from '../types'
 import PerspectivePanel from './PerspectivePanel'
+import SourceLink from './SourceLink'
 
 interface Props {
   gate: GateEvent
@@ -137,7 +138,7 @@ export default function GateReview({ gate, onApprove, onAbort, explorePerspectiv
 
   return (
     <div className="backdrop">
-      <div className="modal review-modal" role="dialog" aria-modal="true" aria-labelledby="review-title">
+      <div className={`modal review-modal${gate.stage === 'research' ? ' review-modal--research' : ''}`} role="dialog" aria-modal="true" aria-labelledby="review-title">
         <h2 id="review-title">{gate.stage === 'research' ? 'Review the research' : 'Review the lesson plan'}</h2>
         <p className="muted">
           Review the material and supporting sources before continuing. Approve it as-is, edit the JSON,
@@ -183,14 +184,7 @@ function CitationLinks({ citations }: { citations?: CitationRef[] }) {
   return (
     <span className="review-citations">
       Sources: {citations.map((citation, index) => (
-        <span key={index}>
-          {index > 0 && ' · '}
-          {/^https?:\/\//i.test(citation.url ?? '')
-            ? <a href={citation.url} target="_blank" rel="noopener noreferrer">
-                {citation.title?.trim() || citation.url}
-              </a>
-            : <span className="error">Invalid source URL</span>}
-        </span>
+        <span className="source-inline" key={index}><SourceLink citation={citation} compact /></span>
       ))}
     </span>
   )
@@ -226,9 +220,9 @@ function ResearchSummary({ research }: { research: ResearchOutput }) {
       {sources.length > 0 && (
         <details className="review-inventory">
           <summary>View all {sources.length} retrieved sources</summary>
-          <ul>
+          <ul className="source-list">
             {sources.map((source, index) => (
-              <li key={index}><CitationLinks citations={[source]} /></li>
+              <li key={index}><SourceLink citation={source} /></li>
             ))}
           </ul>
         </details>

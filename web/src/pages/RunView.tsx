@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, generate } from '../api/client'
 import type { GateEvent, LessonRequest, StageStatus } from '../types'
 import StageTimeline from '../components/StageTimeline'
+import AgentActivity, { type ActivityEntry } from '../components/AgentActivity'
 import GateReview from '../components/GateReview'
 
 interface RunState { request: LessonRequest; interactive: boolean }
@@ -18,7 +19,23 @@ export default function RunView() {
   const [aborted, setAborted] = useState<string | null>(null)
   const [runConnected, setRunConnected] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
+  const [latestStageId, setLatestStageId] = useState<string | null>(null)
+  const [activity, setActivity] = useState<ActivityEntry[]>([])
+  const eventSeq = useRef(0)
   const runIdRef = useRef<string | null>(null)
+
+  // Keep only actual events delivered over SSE. Never synthesize a progress
+  // percentage or pretend agents are exchanging unseen messages.
+  const addActivity = useCallback((entry: Omit<ActivityEntry, 'id'>) => {
+    const id = ++eventSeq.current
+    setActivity((previous) => {
+      const last = previous[previous.length - 1]
+      if (last && last.kind === entry.kind && last.stage === entry.stage && last.message === entry.message) {
+        return previous
+      }
+      return [...previous, { ...entry, id }].slice(-8)
+    })
+  }, [])
 
   useEffect(() => {
     if (!state?.request) return
@@ -29,13 +46,30 @@ export default function RunView() {
     queueMicrotask(() => {
       if (controller.signal.aborted) return
       void generate(state.request, state.interactive, {
-        onRun: (e) => { runIdRef.current = e.runId; setRunConnected(true) },
+        onRun: (e) => {
+          runIdRef.current = e.runId
+          setRunConnected(true)
+          addActivity({ kind: 'connection', message: 'Connected to the local lesson service.' })
+        },
         onStage: (e) => {
           setStatuses((prev) => ({ ...prev, [e.name]: e.status }))
-          if (e.name !== 'Research' || e.status !== 'started') setProgressMessage(null)
+          setLatestStageId(e.name)
+          setProgressMessage(null)
+          const verb = e.status === 'started' ? 'Started' : e.status === 'completed' ? 'Completed' : 'Failed'
+          addActivity({ kind: 'stage', stage: e.name, message: `${verb}.` })
         },
-        onProgress: (e) => setProgressMessage(e.message),
-        onGate: (e) => setGate(e),
+        onProgress: (e) => {
+          setProgressMessage(e.message)
+          addActivity({ kind: 'progress', stage: e.stage, message: e.message })
+        },
+        onGate: (e) => {
+          setGate(e)
+          setProgressMessage(null)
+          addActivity({
+            kind: 'review',
+            message: e.stage === 'research' ? 'Research ready for educator review.' : 'Lesson plan ready for educator review.',
+          })
+        },
         onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
         onError: (m) => setError(m),
         onAborted: (m) => setAborted(m),
@@ -47,7 +81,7 @@ export default function RunView() {
     })
 
     return () => controller.abort()
-  }, [state, navigate])
+  }, [state, navigate, addActivity])
 
   if (!state?.request) {
     return (
@@ -68,6 +102,10 @@ export default function RunView() {
     if (!g || !runIdRef.current) return
     await api.submitGate(runIdRef.current, g.requestId, approved, edited)
     setGate(null)
+    addActivity({
+      kind: 'review',
+      message: approved ? 'Review approved; workflow may continue.' : 'Educator stopped the run.',
+    })
     if (!approved) setAborted('You aborted the run.')
   }
 
@@ -79,15 +117,18 @@ export default function RunView() {
         takes a few minutes. You can keep this tab open and watch the progress below.
       </p>
 
-      {Object.keys(statuses).length === 0 && !error && !aborted && (
-        <p className="muted" role="status">
-          {runConnected ? 'Connected — preparing the research stage…' : 'Connecting to the lesson service…'}
-        </p>
-      )}
+      <AgentActivity
+        connected={runConnected}
+        explorePerspectives={state.request.explore_perspectives}
+        latestStageId={latestStageId}
+        statuses={statuses}
+        progressMessage={progressMessage}
+        waitingForReview={!!gate}
+        error={error}
+        aborted={aborted}
+        entries={activity}
+      />
       <StageTimeline statuses={statuses} explorePerspectives={state.request.explore_perspectives} />
-      {progressMessage && !error && !aborted && (
-        <p className="muted" role="status" aria-live="polite">{progressMessage}</p>
-      )}
 
       {error && <p className="error" style={{ marginTop: 16 }}>Error: {error}</p>}
       {aborted && <p style={{ marginTop: 16 }}>{aborted}</p>}
