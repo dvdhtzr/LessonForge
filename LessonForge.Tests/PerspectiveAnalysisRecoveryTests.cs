@@ -69,7 +69,7 @@ public sealed class PerspectiveAnalysisRecoveryTests
             },
             KnownSources);
 
-        Assert.Equal([1, 2], attempts);
+        Assert.Equal(new[] { 1, 2 }, attempts);
         Assert.Same(valid, result);
         PerspectiveAnalysisValidator.Validate(result, KnownSources);
     }
