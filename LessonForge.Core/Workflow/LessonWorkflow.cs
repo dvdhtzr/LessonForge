@@ -33,7 +33,10 @@ public static class LessonWorkflow
         var rag = new RagContext();
         var maxOutputTokens = clients.Options.MaxOutputTokens;
 
-        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat, maxOutputTokens), retrieval, rag, researchProgress);
+        var research = new ResearchAgent.ResearchExecutor(
+            ResearchAgent.CreateAgent(chat, maxOutputTokens),
+            ResearchAgent.CreateSummaryRepairAgent(chat, maxOutputTokens),
+            retrieval, rag, researchProgress);
         var perspectives = explorePerspectives
             ? new PerspectiveAnalystAgent.PerspectiveAnalysisExecutor(
                 PerspectiveAnalystAgent.CreateAgent(chat, maxOutputTokens), retrieval, rag)

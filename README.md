@@ -95,6 +95,27 @@ asset. The existing permission and provenance checks apply unchanged.
 
 See [source architecture and source policy](docs/source-registry.md).
 
+### Research-summary completeness and automatic repair
+
+The Research Librarian validates the `topic_summary` before any educator
+review or lesson-planning handoff. JSON schema alone can accept an obviously
+unfinished string (for example, a summary ending in "derived from the concept
+of"). A conservative deterministic check rejects missing sentence-ending
+punctuation, terminal ellipses and dangling conjunctions or prepositions.
+
+If detected, LessonForge performs **one summary-only local Ollama regeneration**
+using the same rights-eligible excerpts and already verified grounded facts.
+It preserves the existing 8–10 cited facts, source inventory and provenance.
+It does not complete a cut-off sentence by guessing or rerun the whole
+multi-agent workflow. The progress stream reports that repair is underway.
+
+If the new summary is still incomplete or model generation fails, the research
+stage fails with a clear explanation rather than presenting the fragment for
+educator approval. The check is heuristic: punctuation does not establish that
+a sentence is factually correct, grammatically valid in every case, or
+supported by the cited passages. Educator review and the Accuracy Editor remain
+necessary.
+
 ### Reading layout and live agent activity
 
 The desktop reading workspace and educator review dialogs are approximately
