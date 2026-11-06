@@ -22,9 +22,15 @@ builder.Services.AddCors(options => options.AddPolicy(CorsPolicy, policy => poli
     .AllowAnyHeader()
     .AllowAnyMethod()));
 
-// LLM/Ollama client factory (loads LessonForge:Llm from config + env).
-builder.Services.AddSingleton(_ => new ClientFactory(
-    builder.Configuration.GetSection(LlmOptions.SectionName).Get<LlmOptions>() ?? new LlmOptions()));
+// Use only the repository-shipped LLM configuration, rather than depending on
+// machine-specific or stale session environment variables for model selection.
+var llmConfiguration = new ConfigurationBuilder()
+    .SetBasePath(builder.Environment.ContentRootPath)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    .Build();
+var llmOptions = llmConfiguration.GetSection(LlmOptions.SectionName).Get<LlmOptions>()
+    ?? throw new InvalidOperationException("Missing LessonForge:Llm in appsettings.json.");
+builder.Services.AddSingleton(new ClientFactory(llmOptions));
 
 // SQLite persistence for finished lessons (the vector index is never persisted).
 var dbPath = builder.Configuration["LessonForge:DbPath"] ?? "lessonforge.db";
@@ -34,6 +40,9 @@ builder.Services.AddScoped<LessonStore>();
 builder.Services.AddSingleton<LessonRunService>();
 
 var app = builder.Build();
+app.Logger.LogInformation(
+    "LessonForge Ollama configuration: chat={ChatModel}, embeddings={EmbeddingModel}, endpoint={Endpoint}, maxOutputTokens={MaxOutputTokens}",
+    llmOptions.ChatModel, llmOptions.EmbeddingModel, llmOptions.Endpoint, llmOptions.MaxOutputTokens);
 app.UseCors(CorsPolicy);
 
 // Ensure the database exists.
