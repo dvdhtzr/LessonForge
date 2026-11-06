@@ -173,6 +173,15 @@ public static class LessonExporter
                 sb.AppendLine();
             }
 
+            if (l.SourceRecords is { Count: > 0 })
+            {
+                sb.AppendLine("### Research Source Provenance");
+                foreach (var source in l.SourceRecords)
+                    sb.AppendLine($"- [{source.Title}]({source.Url}) — {source.ProviderId}; " +
+                        $"{source.LicenseId}; rights: {source.PolicyUrl}; SHA-256: {source.DocumentSha256}");
+                sb.AppendLine();
+            }
+
             var cites = p.Citations;
             if (cites.Count > 0)
             {
@@ -189,7 +198,8 @@ public static class LessonExporter
     private static string Json(StoredLessonView l, Audience audience)
     {
         if (audience == Audience.Teacher)
-            return JsonSerializer.Serialize(new { l.Plan, l.Perspectives, l.Quiz, l.Flags, l.CitationCoverage }, s_json);
+            return JsonSerializer.Serialize(
+                new { l.Plan, l.Perspectives, l.Quiz, l.Flags, l.CitationCoverage, l.SourceRecords }, s_json);
 
         // Student: strip answers, explanations, citations, flags.
         var studentQuiz = l.Quiz.Questions.Select(q => new { q.Stem, q.Options }).ToList();
@@ -345,9 +355,11 @@ public static class LessonExporter
 public sealed record StoredLessonView(
     string Topic, int AudienceAge, LessonPlanOutput Plan, QuizOutput Quiz,
     IReadOnlyList<VerificationFlag> Flags, double CitationCoverage,
-    PerspectiveAnalysisOutput? Perspectives = null)
+    PerspectiveAnalysisOutput? Perspectives = null,
+    IReadOnlyList<SourceEvidenceRecord>? SourceRecords = null)
 {
     public static StoredLessonView From(StoredLesson stored) => new(
         stored.Topic, stored.AudienceAge, stored.Result.Plan, stored.Result.Quiz,
-        stored.Result.Flags, stored.Result.CitationCoverage, stored.Result.Perspectives);
+        stored.Result.Flags, stored.Result.CitationCoverage, stored.Result.Perspectives,
+        stored.Result.SourceRecords);
 }
