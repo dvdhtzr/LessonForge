@@ -181,7 +181,7 @@ public sealed class PerspectiveModeTests
     {
         var clients = new ClientFactory(new LlmOptions());
         using var http = new HttpClient();
-        using var embeddings = new FakeEmbeddingGenerator();
+        var embeddings = new FakeEmbeddingGenerator();
         var retrieval = new RetrievalService(
             new WikipediaClient(http), new SourceFetcher(http), embeddings);
 
