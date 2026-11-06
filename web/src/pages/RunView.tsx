@@ -84,7 +84,7 @@ export default function RunView() {
           {runConnected ? 'Connected — preparing the research stage…' : 'Connecting to the lesson service…'}
         </p>
       )}
-      <StageTimeline statuses={statuses} />
+      <StageTimeline statuses={statuses} explorePerspectives={state.request.explore_perspectives} />
       {progressMessage && !error && !aborted && (
         <p className="muted" role="status" aria-live="polite">{progressMessage}</p>
       )}
