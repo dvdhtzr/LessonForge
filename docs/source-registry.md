@@ -121,6 +121,14 @@ References for policy review:
   licensed corpus; it does **not** prove a particular claim is supported by a
   particular passage. Passage identifiers and excerpt-level factual-support
   review remain future work.
+- **Perspective review validation:** a model-proposed disagreement is accepted
+  only when two viewpoints have all required nonempty fields and citations
+  from retrieved rights-eligible sources. Missing data (including a partially
+  populated second viewpoint) triggers at most one regenerated comparison.
+  If repeated results fail deterministic evidence/field validation, the
+  educator receives explicit `insufficient_evidence` with no viewpoints,
+  explaining the failed automated review rather than claiming there is or
+  isn't a scholarly debate. Transport and malformed JSON errors remain fatal.
 - **Reliability:** optional provider unavailability does not prevent Wikipedia
   research. **Primary lesson research** with no eligible documents still fails
   closed. **Supplementary perspective discovery** is allowed to return no
