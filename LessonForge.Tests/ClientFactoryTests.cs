@@ -1,4 +1,5 @@
 using LessonForge.Core.Configuration;
+using Xunit;
 
 namespace LessonForge.Tests;
 
