@@ -199,7 +199,7 @@ public static class LessonExporter
     {
         if (audience == Audience.Teacher)
             return JsonSerializer.Serialize(
-                new { l.Plan, l.Perspectives, l.Quiz, l.Flags, l.CitationCoverage, l.SourceRecords }, s_json);
+                new { l.Plan, l.Perspectives, l.Quiz, l.Flags, l.CitationCoverage, source_records = l.SourceRecords }, s_json);
 
         // Student: strip answers, explanations, citations, flags.
         var studentQuiz = l.Quiz.Questions.Select(q => new { q.Stem, q.Options }).ToList();
