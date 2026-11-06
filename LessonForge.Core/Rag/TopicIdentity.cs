@@ -50,6 +50,33 @@ public static class TopicIdentity
             StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Full-phrase, word-boundary check; never treat "Carroza" or "Carmen"
+    /// alone as evidence of "Carmen Carrozza".
+    /// </summary>
+    public static bool MentionsSubject(string? text, string? topic)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(topic))
+            return false;
+
+        var content = text.Normalize(NormalizationForm.FormKC).Replace('_', ' ');
+        var phrase = string.Join(' ', topic.Normalize(NormalizationForm.FormKC)
+            .Replace('_', ' ').Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (phrase.Length == 0) return false;
+
+        for (var start = 0; start < content.Length;)
+        {
+            var at = content.IndexOf(phrase, start, StringComparison.OrdinalIgnoreCase);
+            if (at < 0) return false;
+            var before = at == 0 || !char.IsLetterOrDigit(content[at - 1]);
+            var end = at + phrase.Length;
+            var after = end == content.Length || !char.IsLetterOrDigit(content[end]);
+            if (before && after) return true;
+            start = at + 1;
+        }
+        return false;
+    }
+
     private static string NormalizeTitle(string value)
     {
         var normalized = value.Normalize(NormalizationForm.FormKC).Replace('_', ' ').Trim();
