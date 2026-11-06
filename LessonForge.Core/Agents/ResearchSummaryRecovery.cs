@@ -90,7 +90,7 @@ public static class ResearchSummaryRecovery
                 "The report was rejected rather than replacing it with a similarly named person or topic.");
 
         draft.TopicSummary = replacement.Trim();
-        progress?.Report("Research summary completeness and subject-identity checks passed.");
+        progress?.Report("Research summary completeness check passed; named-subject identity verified when applicable.");
         return draft;
     }
 }
