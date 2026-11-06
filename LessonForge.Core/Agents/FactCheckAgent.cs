@@ -153,8 +153,19 @@ public static partial class FactCheckAgent
         context.AppendLine($"AGE: {audienceAge}; GRADE: {Short(plan.GradeBand, 70)}");
         context.AppendLine($"OBJECTIVES: {Short(string.Join("; ", plan.LearningObjectives.Take(6)), 480)}");
         context.AppendLine("LESSON MAP (excerpts may omit material; do NOT infer absence from them):");
+        const int mapBudget = 1800;
+        var usedMapChars = 0;
         foreach (var (section, index) in plan.Sections.Select((s, i) => (s, i)))
-            context.AppendLine($"S{index + 1}: {Short(section.Title, 60)} — {Short(section.Body, 125)}");
+        {
+            var line = $"S{index + 1}: {Short(section.Title, 60)} — {Short(section.Body, 125)}";
+            if (usedMapChars + line.Length > mapBudget)
+            {
+                context.AppendLine("(additional lesson sections omitted from the map; do not infer absence)");
+                break;
+            }
+            context.AppendLine(line);
+            usedMapChars += line.Length;
+        }
 
         if (plan.Vocabulary.Count > 0)
             context.AppendLine("TAUGHT VOCABULARY: " +
@@ -171,8 +182,10 @@ public static partial class FactCheckAgent
         {
             var q = quiz.Questions[i];
             context.AppendLine($"Q{i + 1}: {Short(q.Stem, 250)}");
-            for (var option = 0; option < q.Options.Count; option++)
+            for (var option = 0; option < Math.Min(q.Options.Count, 8); option++)
                 context.AppendLine($"  {option}: {Short(q.Options[option], 100)}");
+            if (q.Options.Count > 8)
+                context.AppendLine("(remaining options omitted; cannot verify entire answer set)");
             context.AppendLine($"  Correct index: {q.CorrectIndex}; explanation: {Short(q.Explanation, 310)}");
         }
 
