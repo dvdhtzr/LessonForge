@@ -40,7 +40,7 @@ public static partial class ResearchAgent
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient)
-        => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
 
     public sealed partial class ResearchExecutor(
         AIAgent agent, RetrievalService retrieval, RagContext rag, IProgress<string>? progress = null)
@@ -82,8 +82,8 @@ public static partial class ResearchAgent
                 """;
 
             progress?.Report("Asking the local model to assemble the research report…");
-            var response = await agent.RunAsync<ResearchOutput>(prompt, cancellationToken: cancellationToken);
-            var output = response.Result;
+            var output = await StructuredAgentOutput.RunAsync<ResearchOutput>(
+                agent, prompt, "Research", cancellationToken);
             progress?.Report("Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
