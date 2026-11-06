@@ -141,7 +141,9 @@ public sealed class NamedSubjectRetrievalTests
     {
         var wiki = new ConfusableWikipediaHandler(wrongDirect, omitDirect);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Create(wiki).BuildAsync("Carmen Carrozza"));
+        {
+            await Create(wiki).BuildAsync("Carmen Carrozza");
+        });
 
         Assert.Contains("requested named subject", error.Message);
         Assert.Contains("similarly named", error.Message);
