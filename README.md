@@ -92,6 +92,15 @@ See [source architecture and source policy](docs/source-registry.md).
   Teacher exports carry review actions; student exports do not expose flags.
   This does **not** independently prove claims true or guarantee that the review
   catches every omission, especially where the source/lesson excerpts were bounded.
+- **Bounded Perspective Analyst recovery:** a supported disagreement must have
+  two complete viewpoints with substantive evidence, limitations and retrieved
+  citation URLs. If a local model returns a structurally plausible but
+  unverifiable second viewpoint, the analysis is regenerated once with a
+  smaller, stricter prompt. A second failed validation results in an
+  **explicitly inconclusive** analysis with no accepted perspectives and a
+  clear explanation for educator review. No missing fields, fabricated citations
+  or unsupported opposing positions are silently repaired; Ollama transport,
+  generation and parse failures still surface as errors.
 - **Streaming + gates:** the API streams Server-Sent Events (`run` → `stage*` → `gate*` →
   `complete` → `done`). Gates map to MAF `RequestPort`s; the UI approves/edits/aborts. Active runs
   live in memory (single-user v1).
