@@ -29,6 +29,27 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
 | Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
 
+### Gutenberg and Smithsonian — additional reviewed metadata routes
+
+- **Project Gutenberg:** the official [weekly machine-readable CSV catalog](https://www.gutenberg.org/ebooks/offline_catalogs.html)
+  is downloaded at most weekly into a bounded local cache. Only bibliography
+  records, authors, subject headings and ebook release dates enter the index.
+  We **do not fetch ebook text** or infer an edition's copyright status from
+  its existence in the catalog. No scraping of public ebook pages.
+- **Smithsonian Open Access:** the [developer tools](https://www.si.edu/openaccess/devtools)
+  include a key-required API and an anonymous [AWS Open Data repository](https://registry.opendata.aws/smithsonian-open-access/).
+  LessonForge samples a small set of official weekly JSON-lines metadata
+  shards from one relevant Smithsonian unit (such as the National Museum
+  of American History, American Art Museum, or Air and Space Museum).
+  **Only records explicitly marking metadata as CC0** are accepted.
+  The provider does not ingest digital image files, audio, 3D media, or
+  externally linked pages. The sample is not a comprehensive catalog search.
+  No Smithsonian API key or AWS account is required.
+
+These sources add trustworthy *discovery metadata*, not direct quotations
+from books or museum objects. The established permission gate, citation URL
+validation, source hashes and teacher provenance exports apply unchanged.
+
 ### Source Registry (initial rollout)
 
 - **Reviewed paths:** Wikipedia Action API article plaintext (CC BY-SA 4.0 with
@@ -49,9 +70,9 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
   and JSON exports contain this inventory. Source URLs produced by agents must
   match the material actually retrieved in the run.
-- **Candidates requiring review:** Smithsonian Open Access, Project Gutenberg,
-  Saylor University, and all unreviewed Library of Congress collections remain
-  disabled; there is no bulk ingestion or API-key requirement.
+- **Still excluded:** Gutenberg ebook text, Smithsonian media assets,
+  Saylor course content, and unreviewed Library of Congress collections.
+  These require separate rights/acquisition review.
 - **Limits:** USGS provides recent earthquake examples, while LoC catalog metadata
   documents *the existence and description* of archival records—not their full
   primary-source text. Neither should be presented as direct support for broad
