@@ -1,5 +1,5 @@
 import type { StageStatus } from '../types'
-import { getStage } from './StageTimeline'
+import { getStage, STAGES } from './StageTimeline'
 
 export interface ActivityEntry {
   id: number
@@ -10,6 +10,7 @@ export interface ActivityEntry {
 
 interface Props {
   connected: boolean
+  explorePerspectives: boolean
   latestStageId: string | null
   statuses: Record<string, StageStatus>
   progressMessage: string | null
@@ -25,9 +26,11 @@ interface Props {
  * show made-up percentages, token counts or agent-to-agent conversations.
  */
 export default function AgentActivity({
-  connected, latestStageId, statuses, progressMessage,
+  connected, explorePerspectives, latestStageId, statuses, progressMessage,
   waitingForReview, error, aborted, entries,
 }: Props) {
+  const expectedStages = STAGES.filter((item) => item.id !== 'PerspectiveAnalysis' || explorePerspectives)
+  const completedStages = expectedStages.filter((item) => statuses[item.id] === 'completed').length
   const stage = getStage(latestStageId)
   const isWorking = !waitingForReview && !error && !aborted &&
     !!stage && statuses[stage.id] === 'started'
@@ -74,6 +77,10 @@ export default function AgentActivity({
         <span className={`agent-board__indicator ${isWorking ? 'agent-board__indicator--live' : ''}`}
           aria-hidden="true" />
       </div>
+
+      <p className="agent-board__stage-count">
+        {completedStages} of {expectedStages.length} workflow stages completed
+      </p>
 
       {entries.length > 0 && (
         <details className="agent-board__history">
