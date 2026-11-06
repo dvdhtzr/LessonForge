@@ -90,6 +90,42 @@ public static class LessonExporter
             sb.AppendLine();
         }
 
+        if (l.Perspectives is { } analysis)
+        {
+            sb.AppendLine("## Perspective Analysis");
+            sb.AppendLine(analysis.Status switch
+            {
+                "supported_disagreement" => "Credible differing interpretations have been identified.",
+                "no_substantive_disagreement" => "No substantive disagreement was established from the available evidence.",
+                _ => "The available evidence was insufficient to establish competing interpretations."
+            });
+            sb.AppendLine();
+            foreach (var view in analysis.Perspectives)
+            {
+                sb.AppendLine($"### {view.Name}");
+                sb.AppendLine(view.Interpretation);
+                sb.AppendLine($"**Supporting evidence:** {view.EvidenceBasis}");
+                sb.AppendLine($"**Limitations:** {view.Limitations}");
+                foreach (var citation in view.Citations)
+                    sb.AppendLine($"- [{citation.Title}]({citation.Url})");
+                sb.AppendLine();
+            }
+            if (analysis.AreasOfAgreement.Count > 0)
+            {
+                sb.AppendLine("### Areas of agreement");
+                foreach (var agreement in analysis.AreasOfAgreement)
+                    sb.AppendLine($"- {agreement}");
+            }
+            sb.AppendLine($"**Evidence limitations:** {analysis.EvidenceLimitations}");
+            if (analysis.DiscussionQuestions.Count > 0)
+            {
+                sb.AppendLine("### Discussion questions");
+                foreach (var question in analysis.DiscussionQuestions)
+                    sb.AppendLine($"- {question}");
+            }
+            sb.AppendLine();
+        }
+
         sb.AppendLine("## Quiz");
         sb.AppendLine();
         var questions = l.Quiz.Questions;
@@ -144,11 +180,11 @@ public static class LessonExporter
     private static string Json(StoredLessonView l, Audience audience)
     {
         if (audience == Audience.Teacher)
-            return JsonSerializer.Serialize(new { l.Plan, l.Quiz, l.Flags, l.CitationCoverage }, s_json);
+            return JsonSerializer.Serialize(new { l.Plan, l.Perspectives, l.Quiz, l.Flags, l.CitationCoverage }, s_json);
 
         // Student: strip answers, explanations, citations, flags.
         var studentQuiz = l.Quiz.Questions.Select(q => new { q.Stem, q.Options }).ToList();
-        return JsonSerializer.Serialize(new { l.Plan, Quiz = new { Questions = studentQuiz } }, s_json);
+        return JsonSerializer.Serialize(new { l.Plan, l.Perspectives, Quiz = new { Questions = studentQuiz } }, s_json);
     }
 
     // ───────────────────────── PDF ─────────────────────────
@@ -196,6 +232,37 @@ public static class LessonExporter
 
                     if (p.Vocabulary.Count > 0)
                         Section(col, "Vocabulary", c => Bullets(c, p.Vocabulary.Select(v => $"{v.Term} — {v.Definition}")));
+
+                    if (l.Perspectives is { } analysis)
+                        Section(col, "Perspective Analysis", c =>
+                        {
+                            var status = analysis.Status switch
+                            {
+                                "supported_disagreement" => "Credible interpretations differ.",
+                                "no_substantive_disagreement" => "No substantive disagreement was established.",
+                                _ => "Available evidence is insufficient to establish differing interpretations."
+                            };
+                            c.Item().Text(status);
+                            foreach (var view in analysis.Perspectives)
+                            {
+                                c.Item().PaddingTop(4).Text(view.Name).Bold();
+                                c.Item().Text(view.Interpretation);
+                                c.Item().Text($"Supporting evidence: {view.EvidenceBasis}");
+                                c.Item().Text($"Limitations: {view.Limitations}").FontSize(9);
+                                Bullets(c, view.Citations.Select(ci => $"{ci.Title}: {ci.Url}"));
+                            }
+                            if (analysis.AreasOfAgreement.Count > 0)
+                            {
+                                c.Item().Text("Areas of agreement").Bold();
+                                Bullets(c, analysis.AreasOfAgreement);
+                            }
+                            c.Item().Text($"Evidence limitations: {analysis.EvidenceLimitations}").FontSize(9);
+                            if (analysis.DiscussionQuestions.Count > 0)
+                            {
+                                c.Item().Text("Discussion questions").Bold();
+                                Bullets(c, analysis.DiscussionQuestions);
+                            }
+                        });
 
                     Section(col, "Quiz", c =>
                     {
@@ -266,9 +333,10 @@ public static class LessonExporter
 /// <summary>A flattened, serialization-friendly view the exporter renders from.</summary>
 public sealed record StoredLessonView(
     string Topic, int AudienceAge, LessonPlanOutput Plan, QuizOutput Quiz,
-    IReadOnlyList<VerificationFlag> Flags, double CitationCoverage)
+    IReadOnlyList<VerificationFlag> Flags, double CitationCoverage,
+    PerspectiveAnalysisOutput? Perspectives = null)
 {
     public static StoredLessonView From(StoredLesson stored) => new(
         stored.Topic, stored.AudienceAge, stored.Result.Plan, stored.Result.Quiz,
-        stored.Result.Flags, stored.Result.CitationCoverage);
+        stored.Result.Flags, stored.Result.CitationCoverage, stored.Result.Perspectives);
 }
