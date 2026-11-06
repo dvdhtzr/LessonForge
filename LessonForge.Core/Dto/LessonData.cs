@@ -27,6 +27,10 @@ public sealed class LessonRequest
     [Description("Optional extra context about the audience (prior knowledge, setting, accommodations).")]
     public string AudienceNotes { get; set; } = "";
 
+    [JsonPropertyName("explore_perspectives")]
+    [Description("Ask a separate agent to investigate credible differing interpretations of the topic.")]
+    public bool ExplorePerspectives { get; set; }
+
     [JsonPropertyName("quiz_config")]
     public QuizConfig QuizConfig { get; set; } = new();
 }
@@ -81,6 +85,10 @@ public sealed class ResearchOutput
     [JsonPropertyName("source_inventory")]
     [Description("The distinct sources retrieved for this topic.")]
     public List<CitationRef> SourceInventory { get; set; } = new();
+
+    [JsonPropertyName("perspectives")]
+    [Description("Optional educator-reviewed analysis of credible differing interpretations.")]
+    public PerspectiveAnalysisOutput? Perspectives { get; set; }
 }
 
 [Description("A single fact with its supporting citations.")]
@@ -92,6 +100,55 @@ public sealed class GroundedFact
 
     [JsonPropertyName("citations")]
     [Description("The sources that support this statement.")]
+    public List<CitationRef> Citations { get; set; } = new();
+}
+
+// ─────────────── Optional perspective-analysis stage ───────────────
+
+/// <summary>
+/// A separate evidence-aware MAF agent produces this optional review. A conclusion that
+/// no meaningful disagreement is established is a valid result, not a reason to invent sides.
+/// </summary>
+[Description("Credible perspectives and the evidence supporting or limiting them.")]
+public sealed class PerspectiveAnalysisOutput
+{
+    [JsonPropertyName("status")]
+    [Description("supported_disagreement, no_substantive_disagreement, or insufficient_evidence.")]
+    public string Status { get; set; } = "";
+
+    [JsonPropertyName("perspectives")]
+    [Description("Two or three sourced interpretations only when supported_disagreement.")]
+    public List<PerspectiveViewpoint> Perspectives { get; set; } = new();
+
+    [JsonPropertyName("areas_of_agreement")]
+    [Description("Evidence-backed observations or facts the credible interpretations share.")]
+    public List<string> AreasOfAgreement { get; set; } = new();
+
+    [JsonPropertyName("evidence_limitations")]
+    [Description("Why evidence is insufficient, uncertain, disputed or unevenly distributed.")]
+    public string EvidenceLimitations { get; set; } = "";
+
+    [JsonPropertyName("discussion_questions")]
+    [Description("Age-appropriate prompts for comparing evidence rather than demanding agreement.")]
+    public List<string> DiscussionQuestions { get; set; } = new();
+}
+
+[Description("One sourced viewpoint or scholarly interpretation.")]
+public sealed class PerspectiveViewpoint
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("interpretation")]
+    public string Interpretation { get; set; } = "";
+
+    [JsonPropertyName("evidence_basis")]
+    public string EvidenceBasis { get; set; } = "";
+
+    [JsonPropertyName("limitations")]
+    public string Limitations { get; set; } = "";
+
+    [JsonPropertyName("citations")]
     public List<CitationRef> Citations { get; set; } = new();
 }
 
@@ -220,6 +277,10 @@ public sealed class VerifiedLessonOutput
 {
     [JsonPropertyName("plan")]
     public LessonPlanOutput Plan { get; set; } = new();
+
+    [JsonPropertyName("perspectives")]
+    [Description("Educator-approved analysis when the optional perspectives mode was requested.")]
+    public PerspectiveAnalysisOutput? Perspectives { get; set; }
 
     [JsonPropertyName("quiz")]
     public QuizOutput Quiz { get; set; } = new();
