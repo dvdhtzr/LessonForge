@@ -73,8 +73,16 @@ public sealed class LocLawmakingCatalogProvider(HttpClient http) : IEducationalS
         }
 
         using var json = JsonDocument.Parse(buffer.ToArray());
-        if (!json.RootElement.TryGetProperty("results", out var results) ||
-            results.ValueKind != JsonValueKind.Array)
+        // LoC's attribute filtering can expose a results wrapper or a bare
+        // results array. Handle only these documented collection-list shapes.
+        JsonElement results;
+        if (json.RootElement.ValueKind == JsonValueKind.Array)
+            results = json.RootElement;
+        else if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                 json.RootElement.TryGetProperty("results", out var wrapped) &&
+                 wrapped.ValueKind == JsonValueKind.Array)
+            results = wrapped;
+        else
             return [];
 
         var documents = new List<SourceDocument>();
@@ -166,15 +174,17 @@ public sealed class LocLawmakingCatalogProvider(HttpClient http) : IEducationalS
             restricted.ValueKind == JsonValueKind.True)
             return true;
 
-        foreach (var field in new[] { "rights_advisory", "rights_information", "access_advisory" })
+        foreach (var field in new[] { "rights_advisory", "rights_information", "access_advisory", "rights" })
         {
             if (!item.TryGetProperty(field, out var value)) continue;
+            if (value.ValueKind is not (JsonValueKind.String or JsonValueKind.Array))
+                return true;
+            if (value.ValueKind == JsonValueKind.Array &&
+                value.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String))
+                return true;
             var statements = value.ValueKind == JsonValueKind.String
-                ? new[] { value.GetString() ?? "" }
-                : value.ValueKind == JsonValueKind.Array
-                    ? value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
-                        .Select(x => x.GetString() ?? "").ToArray()
-                    : [];
+                ? [value.GetString() ?? ""]
+                : value.EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
             if (statements.Any(s =>
                 s.Contains("permission required", StringComparison.OrdinalIgnoreCase) ||
                 s.Contains("rights reserved", StringComparison.OrdinalIgnoreCase) ||
