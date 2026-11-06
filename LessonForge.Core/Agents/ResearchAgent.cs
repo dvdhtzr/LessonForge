@@ -56,7 +56,7 @@ public static partial class ResearchAgent
             state.CurrentStep = 1;
 
             // Build the per-run RAG index and share it with the downstream stages.
-            var session = await retrieval.BuildAsync(request.Topic, progress: null, ct: cancellationToken);
+            var session = await retrieval.BuildAsync(request.Topic, progress, ct: cancellationToken);
             rag.Session = session;
 
             var queries = new[]
