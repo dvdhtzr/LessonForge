@@ -12,7 +12,7 @@ retrieval pipeline. Everything runs on your own machine — no cloud services an
 
 ```
 React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF workflow crew  ──▶  Ollama (local)
-   web/                            LessonForge.Api         LessonForge.Core          qwen3.8:27b
+   web/                            LessonForge.Api         LessonForge.Core          gemma4:latest
                                    SQLite (results)        RAG index (in-memory)     nomic-embed-text
 ```
 
@@ -33,11 +33,10 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   discarded. Only the finished lesson/quiz is persisted (SQLite). The index is a small hand-rolled
   cosine-similarity store over the standard `IEmbeddingGenerator` abstraction, so it needs no vector
   DB and is trivially testable.
-- **Models (local Ollama, configurable):** `qwen3.8:27b` (primary), `qwen3.5:9b` (optional
-  faster model), `nomic-embed-text:v1.5` (768-dim embeddings). Set under
-  `LessonForge:Llm` in `LessonForge.Api/appsettings.json` or via `LessonForge__Llm__*`
-  environment variables. The current workflow uses the **primary model** for all four
-  agents; the fast-model setting is available but is not yet assigned to a workflow stage.
+- **Models (local Ollama, configured in Git):** `gemma4:latest` for all four agents and
+  `nomic-embed-text:v1.5` for the RAG embeddings. Both names are defined in the
+  committed `LessonForge.Api/appsettings.json`. No API keys, cloud services, or
+  manually configured environment variables are necessary.
 - **Streaming + gates:** the API streams Server-Sent Events (`run` → `stage*` → `gate*` →
   `complete` → `done`). Gates map to MAF `RequestPort`s; the UI approves/edits/aborts. Active runs
   live in memory (single-user v1).
@@ -52,32 +51,85 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 - `web/` — React + TypeScript (Vite): new-lesson form, live run view with review gates, lesson view
   (plan/quiz tabs, student/teacher toggle, export), history.
 
-## Running it
+## Run LessonForge from a clean checkout
 
-**Prerequisites:** .NET 10 SDK, Node.js 20+, and [Ollama](https://ollama.com) with the models:
+### Windows (recommended)
 
-```bash
-ollama pull qwen3.8:27b
-ollama pull qwen3.5:9b
-ollama pull nomic-embed-text:v1.5
-ollama serve
+Install these prerequisites once:
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (the SDK, not just the runtime)
+- [Node.js 22.12+ or 24+](https://nodejs.org/)
+- [Ollama for Windows](https://ollama.com/download/windows); launch the Ollama application
+- Git
+
+Clone the repository, then run these commands in **PowerShell** from the repository root
+(with no existing API/Vite servers running):
+
+```powershell
+git clone https://github.com/dvdhtzr/LessonForge.git
+cd LessonForge
+.\scripts\setup.ps1
+.\scripts\start.ps1
 ```
 
-**API** (listens on http://localhost:5174):
+`setup.ps1` checks for the SDK and Node.js, checks that Ollama is running,
+reads the committed chat and embedding model names from `appsettings.json`,
+**downloads any missing Ollama models** (the download may be several gigabytes),
+and runs the full local build/test/lint verification gate. It does not install
+the .NET SDK, Node.js, or the Ollama application itself.
+
+`start.ps1` verifies the required models exist and opens separate PowerShell
+terminals for the API and Vite. Open **http://localhost:5173** when Vite reports
+ready. Keep both terminals open while using the application. Close them to stop
+the local servers. Ollama for Windows normally runs its own local service; do
+not start a second `ollama serve` if the application is already running.
+
+**No `$env:` settings, secrets, API keys, or external model subscriptions are required.**
+
+### Starting services manually (Windows, macOS, or Linux)
+
+After installing the prerequisites, make sure these exact models are available:
+
+```bash
+ollama pull gemma4:latest
+ollama pull nomic-embed-text:v1.5
+```
+
+For non-Windows installations, ensure the Ollama server is running with
+`ollama serve` if it is not already started. From the repository root,
+start the API in one terminal:
 
 ```bash
 dotnet run --project LessonForge.Api --launch-profile http
 ```
 
-**Frontend** (http://localhost:5173, proxies `/api` to the API):
+Start the frontend in a second terminal:
 
 ```bash
 cd web
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:5173, enter a topic and age, and generate.
+The API uses **http://localhost:5174**, and Vite uses **http://localhost:5173**.
+The Vite proxy points to the committed API address; it does not need an
+environment variable.
+
+### Model and application settings
+
+All runtime model choices live in **`LessonForge.Api/appsettings.json`**.
+The API reads its Ollama settings from that file rather than inheriting model
+overrides from an old shell session. It logs the selected chat model, embedding
+model, endpoint, and output budget on startup, making it easy to confirm the
+expected configuration is running.
+
+To intentionally change models, edit the tracked config file and ensure the
+matching Ollama model has been installed. Re-run `scripts/setup.ps1` and
+restart the API after changing it. Models remain local to your machine; the
+repository contains the install commands and configuration, not the model weights.
+
+The live research step still needs internet access to Wikipedia and external
+sources, but local LLM inference does not require a paid API.
 
 ### Reliable structured outputs
 
@@ -88,16 +140,16 @@ and rejects empty, invalid or obviously incomplete results with stage-specific
 diagnostics. These checks do not assert that the educational facts are correct;
 the Accuracy Editor and educator review remain necessary.
 
-The change is especially relevant for reasoning-capable Ollama models such as
-`qwen3.8:27b`, whose default thinking output can be separate from the final answer.
+This avoids depending on how a model exposes its internal reasoning or final
+answer. The committed Gemma 4 configuration has already reached the research
+approval gate in a local smoke test.
 No generated output is silently replaced by a fabricated lesson or quiz.
 
 ### Local inference timeout, output budget and research progress
 
 The four local MAF agents now explicitly request up to **8192 output tokens** per
 structured response, instead of relying on the model's default generation cap.
-Configure `LessonForge:Llm:MaxOutputTokens` in `LessonForge.Api/appsettings.json` or
-set `LessonForge__Llm__MaxOutputTokens` before launching the API. If Ollama reports a
+Configure `LessonForge:Llm:MaxOutputTokens` in `LessonForge.Api/appsettings.json`. If Ollama reports a
 `length` finish reason, the agent rejects the truncated output with a clear token-budget
 error; it never tries to parse or silently repair an incomplete lesson.
 
@@ -113,22 +165,12 @@ allocated. If a model's context is insufficient, use Ollama's context settings o
 larger-context model configuration, noting that a larger context uses more memory.
 See the Ollama context-length documentation.
 
-The OpenAI-compatible .NET client defaults to a 100-second network timeout. A local
-27-billion-parameter model may take longer to respond, especially when starting cold or
-running partially from CPU/system memory. LessonForge configures
-`LessonForge:Llm:NetworkTimeoutSeconds` (default **600**) and
-`LessonForge:Llm:MaxRetries` (default **0**) so a slow response isn't automatically
-generated repeatedly. You can override them without changing source:
+The OpenAI-compatible client would otherwise time out after roughly 100 seconds.
+LessonForge configures `NetworkTimeoutSeconds` (600 by default), `MaxRetries`
+(0 by default) and `MaxOutputTokens` (8192 by default) in the same committed
+`appsettings.json`. Adjust that file directly if needed; restart the API
+to apply changes. No environment-variable overrides are part of setup.
 
-```powershell
-$env:LessonForge__Llm__NetworkTimeoutSeconds = '900'
-$env:LessonForge__Llm__MaxRetries = '0'
-$env:LessonForge__Llm__MaxOutputTokens = '8192'
-# Optional faster smoke test; does not change committed application defaults:
-$env:LessonForge__Llm__ChatModel = 'qwen3.5:9b'
-```
-
-Set variables in the API's PowerShell session **before** starting `dotnet run`.
 The Research Librarian emits progress for source retrieval, embedding, evidence search,
 and local report generation. Progress appears on the run page and in API logs.
 A failed stage is reported with its failure details rather than a generic empty result.
@@ -142,7 +184,7 @@ machine with the .NET 10 SDK, Node.js and npm, run the complete gate before merg
 The unit tests use fixtures/fakes; they do not need a running Ollama server or live Wikipedia.
 Dependency restore/install may still require internet access.
 
-**Windows / PowerShell** (run from the repository root):
+**Windows / PowerShell** (run from the repository root; setup already runs this):
 
 ```powershell
 .\scripts\check.ps1
@@ -160,6 +202,9 @@ Dependency restore/install may still require internet access.
 | `scripts/test.ps1` | Run all xUnit tests |
 | `scripts/web.ps1` | Reuse unchanged dependencies; otherwise `npm ci`; lint, type-check, build |
 | `scripts/check.ps1` | Run the complete local gate; fail on any nonzero .NET/npm exit |
+| `scripts/ollama-prerequisites.ps1` | Validate that Ollama and the configured models are available |
+| `scripts/setup.ps1` | Initial Windows setup: check tools, pull missing models, run verification |
+| `scripts/start.ps1` | Start API and web frontend in separate PowerShell terminals |
 
 The `*.sh` equivalents run the same checks. A successful check prints
 `==> All local checks passed.` and must not do so if a command fails.
