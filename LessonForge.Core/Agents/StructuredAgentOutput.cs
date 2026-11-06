@@ -106,10 +106,37 @@ public static class StructuredAgentOutput
 
         var missing = MissingRequiredContent(value);
         if (missing.Count > 0)
+        {
+            // With System.Text.Json's default-initialized DTO properties, both a missing
+            // array and a supplied empty array look identical after deserialization.
+            // Distinguish them without exposing generated text or source material.
+            if (value is ResearchOutput && missing.Contains("grounded_facts"))
+            {
+                using var json = JsonDocument.Parse(text);
+                var root = json.RootElement;
+                string detail;
+                if (root.ValueKind != JsonValueKind.Object ||
+                    !root.TryGetProperty("grounded_facts", out var facts))
+                {
+                    detail = "property absent";
+                }
+                else if (facts.ValueKind == JsonValueKind.Array)
+                {
+                    detail = facts.GetArrayLength() == 0 ? "empty array" : "invalid entries";
+                }
+                else
+                {
+                    detail = "not an array";
+                }
+
+                missing[missing.IndexOf("grounded_facts")] = $"grounded_facts ({detail})";
+            }
+
             throw new InvalidOperationException(
                 $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
                 $"Missing or invalid fields: {string.Join(", ", missing)}. " +
                 "The result was rejected rather than treating an empty payload as successful.");
+        }
 
         return value;
     }
