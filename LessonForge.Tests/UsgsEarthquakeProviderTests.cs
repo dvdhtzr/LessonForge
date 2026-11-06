@@ -30,7 +30,8 @@ public sealed class UsgsEarthquakeProviderTests
         """;
 
     private sealed class Handler(string body, HttpStatusCode status = HttpStatusCode.OK,
-        string mediaType = "application/json") : HttpMessageHandler
+        string mediaType = "application/json", string? finalUrl = null,
+        bool omitRequestMetadata = false) : HttpMessageHandler
     {
         public int Calls { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(
@@ -40,6 +41,12 @@ public sealed class UsgsEarthquakeProviderTests
             Assert.Equal(UsgsEarthquakeProvider.FeedUrl, request.RequestUri?.ToString());
             return Task.FromResult(new HttpResponseMessage(status)
             {
+                // Real HTTP responses carry their effective request URI. A bare
+                // HttpMessageHandler fixture doesn't populate RequestMessage
+                // automatically; omitting it makes the production safety check
+                // correctly fail closed before the JSON is parsed.
+                RequestMessage = omitRequestMetadata ? null : finalUrl is null
+                    ? request : new HttpRequestMessage(HttpMethod.Get, finalUrl),
                 Content = new StringContent(body, Encoding.UTF8, mediaType)
             });
         }
@@ -67,6 +74,26 @@ public sealed class UsgsEarthquakeProviderTests
         Assert.Contains("magnitude 6.1", documents[0].Text);
         Assert.Contains("100 km SE of Example City", documents[0].Text);
         Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("https://malicious.example/earthquakes/feed/v1.0/summary/4.5_week.geojson")]
+    [InlineData("http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson")]
+    public async Task RedirectedOrDowngradedFinalUrl_IsRejected(string finalUrl)
+    {
+        var handler = new Handler(Fixture, finalUrl: finalUrl);
+        var sources = await new UsgsEarthquakeProvider(new HttpClient(handler))
+            .RetrieveAsync("earthquake");
+        Assert.Empty(sources);
+    }
+
+    [Fact]
+    public async Task MissingFinalRequestMetadata_IsRejected()
+    {
+        var handler = new Handler(Fixture, omitRequestMetadata: true);
+        var sources = await new UsgsEarthquakeProvider(new HttpClient(handler))
+            .RetrieveAsync("earthquake");
+        Assert.Empty(sources);
     }
 
     [Fact]
