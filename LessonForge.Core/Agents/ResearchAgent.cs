@@ -40,11 +40,16 @@ public static partial class ResearchAgent
         Be factual and precise. Prefer foundational, widely-agreed facts over trivia. You trust
         encyclopedic and primary sources and cite everything.
 
+        Use the exact JSON field names topic_summary, grounded_facts, statement,
+        citations, title, url, queries_used, and source_inventory. Each grounded_facts
+        entry is an object with a nonempty statement and a nonempty citations array.
+        Do not wrap the results inside a "research" or "lesson" object.
         Output only valid JSON matching the ResearchOutput schema.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
+        => StructuredAgentOutput.CreateSchemaAgent<ResearchOutput>(
+            chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class ResearchExecutor(
         AIAgent agent, RetrievalService retrieval, RagContext rag, IProgress<string>? progress = null)
