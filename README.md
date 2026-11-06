@@ -92,7 +92,26 @@ The change is especially relevant for reasoning-capable Ollama models such as
 `qwen3.8:27b`, whose default thinking output can be separate from the final answer.
 No generated output is silently replaced by a fabricated lesson or quiz.
 
-### Local inference timeout and research progress
+### Local inference timeout, output budget and research progress
+
+The four local MAF agents now explicitly request up to **8192 output tokens** per
+structured response, instead of relying on the model's default generation cap.
+Configure `LessonForge:Llm:MaxOutputTokens` in `LessonForge.Api/appsettings.json` or
+set `LessonForge__Llm__MaxOutputTokens` before launching the API. If Ollama reports a
+`length` finish reason, the agent rejects the truncated output with a clear token-budget
+error; it never tries to parse or silently repair an incomplete lesson.
+
+The Research Librarian requests a compact JSON shape with `grounded_facts[].citations`
+(a plural array of `{title, url}` objects) and no model-authored source inventory.
+The retrieval system supplies the authoritative source inventory. The research
+prompt also caps excerpts to stay usable in small local context windows.
+
+**Output budget is not context length:** the output-token cap does not increase how
+much source material Ollama can hold. Ollama may allocate only **4K context** on
+systems with less than 24 GiB VRAM; check `ollama ps` for the `CONTEXT` actually
+allocated. If a model's context is insufficient, use Ollama's context settings or a
+larger-context model configuration, noting that a larger context uses more memory.
+See the Ollama context-length documentation.
 
 The OpenAI-compatible .NET client defaults to a 100-second network timeout. A local
 27-billion-parameter model may take longer to respond, especially when starting cold or
@@ -104,6 +123,7 @@ generated repeatedly. You can override them without changing source:
 ```powershell
 $env:LessonForge__Llm__NetworkTimeoutSeconds = '900'
 $env:LessonForge__Llm__MaxRetries = '0'
+$env:LessonForge__Llm__MaxOutputTokens = '8192'
 # Optional faster smoke test; does not change committed application defaults:
 $env:LessonForge__Llm__ChatModel = 'qwen3.5:9b'
 ```
