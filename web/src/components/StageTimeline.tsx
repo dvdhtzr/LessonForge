@@ -1,31 +1,39 @@
 import type { StageStatus } from '../types'
 
-const STAGES: { id: string; label: string }[] = [
-  { id: 'Research', label: 'Research Librarian — gathering & citing sources' },
-  { id: 'PerspectiveAnalysis', label: 'Perspective Analyst — examining evidence and interpretations' },
-  { id: 'LessonPlanner', label: 'Curriculum Designer — building the lesson' },
-  { id: 'QuizGenerator', label: 'Assessment Writer — writing the quiz' },
-  { id: 'FactCheck', label: 'Accuracy Editor — verifying citations' },
-]
+export const STAGES = [
+  { id: 'Research', role: 'Research Librarian', label: 'Gathering and citing sources', mark: 'R' },
+  { id: 'PerspectiveAnalysis', role: 'Perspective Analyst', label: 'Comparing evidence and interpretations', mark: 'P' },
+  { id: 'LessonPlanner', role: 'Curriculum Designer', label: 'Designing the lesson', mark: 'C' },
+  { id: 'QuizGenerator', role: 'Assessment Writer', label: 'Writing the quiz', mark: 'A' },
+  { id: 'FactCheck', role: 'Accuracy Editor', label: 'Checking claims and citations', mark: 'E' },
+] as const
+
+export function getStage(id: string | null | undefined) {
+  return STAGES.find((stage) => stage.id === id)
+}
 
 export default function StageTimeline({ statuses, explorePerspectives = false }: {
   statuses: Record<string, StageStatus>
   explorePerspectives?: boolean
 }) {
   return (
-    <ul className="timeline">
-      {STAGES.filter((s) => s.id !== 'PerspectiveAnalysis' || explorePerspectives).map((s) => {
-        const status = statuses[s.id]
+    <ol className="timeline" aria-label="Lesson creation stages">
+      {STAGES.filter((s) => s.id !== 'PerspectiveAnalysis' || explorePerspectives).map((stage) => {
+        const status = statuses[stage.id]
         return (
-          <li key={s.id}>
-            <span className={`dot ${status ?? ''}`} />
-            <span style={{ color: status ? 'var(--text)' : 'var(--muted)' }}>{s.label}</span>
-            {status === 'completed' && <span className="pill good" style={{ marginLeft: 'auto' }}>done</span>}
-            {status === 'started' && <span className="pill warn" style={{ marginLeft: 'auto' }}>working…</span>}
-            {status === 'failed' && <span className="pill bad" style={{ marginLeft: 'auto' }}>failed</span>}
+          <li key={stage.id} className={`timeline-row ${status ?? ''}`}
+            aria-current={status === 'started' ? 'step' : undefined}>
+            <span className={`stage-symbol ${status ?? ''}`} aria-hidden="true">{stage.mark}</span>
+            <span className="stage-description">
+              <strong>{stage.role}</strong>
+              <span>{stage.label}</span>
+            </span>
+            {status === 'completed' && <span className="pill good">Done</span>}
+            {status === 'started' && <span className="pill warn">Working</span>}
+            {status === 'failed' && <span className="pill bad">Failed</span>}
           </li>
         )
       })}
-    </ul>
+    </ol>
   )
 }
