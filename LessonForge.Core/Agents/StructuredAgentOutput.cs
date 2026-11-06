@@ -89,7 +89,13 @@ public static class StructuredAgentOutput
         var invalid = value switch
         {
             ResearchOutput research =>
-                string.IsNullOrWhiteSpace(research.TopicSummary) || research.GroundedFacts is not { Count: > 0 },
+                string.IsNullOrWhiteSpace(research.TopicSummary) ||
+                research.GroundedFacts is not { Count: > 0 } ||
+                research.GroundedFacts.Any(f =>
+                    string.IsNullOrWhiteSpace(f.Statement) ||
+                    f.Citations is not { Count: > 0 } ||
+                    f.Citations.Any(c => string.IsNullOrWhiteSpace(c.Title) ||
+                                         string.IsNullOrWhiteSpace(c.Url))),
             LessonPlanOutput plan =>
                 string.IsNullOrWhiteSpace(plan.Title) || plan.Sections is not { Count: > 0 },
             QuizOutput quiz =>
@@ -102,7 +108,7 @@ public static class StructuredAgentOutput
 
         if (invalid)
             throw new InvalidOperationException(
-                $"{stage} returned valid JSON but omitted required lesson content. " +
+                $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
                 "The result was rejected rather than treating an empty payload as successful.");
 
         return value;
