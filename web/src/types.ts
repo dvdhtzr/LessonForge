@@ -90,9 +90,16 @@ export interface QuizOutput {
 }
 
 export interface VerificationFlag {
+  // New reviews have host-assigned IDs and structured metadata. Older saved
+  // lessons retain only claim/issue/severity and must remain readable.
+  id?: string
   claim: string
   issue: string
   severity: string
+  category?: string
+  location?: string
+  recommendation?: string
+  evidence?: string
 }
 
 export interface VerifiedLessonOutput {
