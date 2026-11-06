@@ -182,7 +182,7 @@ public sealed class LocLawmakingCatalogProvider(HttpClient http) : IEducationalS
             if (value.ValueKind == JsonValueKind.Array &&
                 value.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String))
                 return true;
-            var statements = value.ValueKind == JsonValueKind.String
+            string[] statements = value.ValueKind == JsonValueKind.String
                 ? [value.GetString() ?? ""]
                 : value.EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
             if (statements.Any(s =>
