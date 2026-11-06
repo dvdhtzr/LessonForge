@@ -36,8 +36,8 @@ public sealed class SourceRegistry
         if (_adapters.Any(a => a is null) ||
             _adapters.Select(a => a.Id).Distinct(StringComparer.Ordinal).Count() != _adapters.Count)
             throw new ArgumentException("Source adapters must be nonnull with unique IDs.", nameof(adapters));
-        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking")))
-            throw new ArgumentException("Only explicitly reviewed USGS and LoC adapters are enabled in this release.", nameof(adapters));
+        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog")))
+            throw new ArgumentException("Only explicitly reviewed USGS, LoC and Gutenberg catalog adapters are enabled.", nameof(adapters));
 
         Sources =
         [
