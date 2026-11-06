@@ -132,7 +132,10 @@ public sealed class LessonRunService(
             }
             else if (!ct.IsCancellationRequested)
             {
-                await WriteAsync(session, "error", new { message = "The run finished without producing a lesson." });
+                var message = failureMessage is null
+                    ? "The run finished without producing a lesson."
+                    : failureMessage.Length > 350 ? failureMessage[..350] + "…" : failureMessage;
+                await WriteAsync(session, "error", new { message });
             }
         }
         catch (OperationCanceledException)
