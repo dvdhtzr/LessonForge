@@ -189,6 +189,19 @@ public sealed class ResearchSummaryRecoveryTests
         Assert.Equal("An incomplete account of", draft.TopicSummary);
     }
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"topic_summary\":\"\"}")]
+    public void MissingSummaryInRepairJson_IsRejectedBeforeUse(string response)
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchSummaryRepairOutput>(
+                response, "ResearchSummaryRepair", "stop"));
+        Assert.Contains("research summary", error.Message);
+        Assert.Contains("topic_summary", error.Message);
+        Assert.DoesNotContain(response, error.Message);
+    }
+
     [Fact]
     public void RepairSchemaOnlyContainsTopicSummary()
     {
