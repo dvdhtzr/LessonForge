@@ -181,6 +181,50 @@ public class DtoAndExportTests
         Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
     }
 
+    [Fact]
+    public void RightsEligibleSourceProvenance_IsPersistedAndExportedToTeachers()
+    {
+        var original = Sample();
+        original.SourceRecords =
+        [
+            new SourceEvidenceRecord
+            {
+                ProviderId = "usgs-earthquakes",
+                CanonicalId = "us1234",
+                Title = "USGS event observation",
+                Url = "https://earthquake.usgs.gov/earthquakes/eventpage/us1234",
+                LicenseId = "US-PD",
+                PolicyUrl = "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+                Attribution = "U.S. Geological Survey",
+                RightsScope = "Official earthquake catalog observations",
+                RightsReviewedOn = new DateOnly(2026, 11, 6),
+                RetrievedAtUtc = new DateTimeOffset(2026, 11, 6, 12, 0, 0, TimeSpan.Zero),
+                DocumentSha256 = new string('A', 64)
+            }
+        ];
+
+        var storedJson = JsonSerializer.Serialize(original, Web);
+        var restored = JsonSerializer.Deserialize<VerifiedLessonOutput>(storedJson, Web)!;
+        var entry = Assert.Single(restored.SourceRecords);
+        Assert.Equal("usgs-earthquakes", entry.ProviderId);
+        Assert.Equal("US-PD", entry.LicenseId);
+        Assert.Equal(64, entry.DocumentSha256.Length);
+
+        var stored = new StoredLesson(1, "Earthquakes", 12, DateTime.UtcNow,
+            new LessonRequest { Topic = "Earthquakes" }, restored);
+        var teacher = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Json, Audience.Teacher).Content);
+        var student = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Json, Audience.Student).Content);
+        var teacherMd = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Markdown, Audience.Teacher).Content);
+
+        Assert.Contains("\"source_records\"", teacher);
+        Assert.Contains("usgs-earthquakes", teacher);
+        Assert.Contains("US-PD", teacherMd);
+        Assert.DoesNotContain("source_records", student);
+    }
+
     private static StoredLessonView View()
     {
         var sample = Sample();
