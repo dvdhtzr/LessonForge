@@ -26,12 +26,12 @@ public static class LessonWorkflow
     /// by every executor and carries the live retrieval session.
     /// </summary>
     public static (MafWorkflow Workflow, RagContext Rag) Build(
-        ClientFactory clients, RetrievalService retrieval, bool interactive)
+        ClientFactory clients, RetrievalService retrieval, bool interactive, IProgress<string>? researchProgress = null)
     {
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
 
-        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat), retrieval, rag);
+        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat), retrieval, rag, researchProgress);
         var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat), rag);
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat), rag);
         var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat), rag);

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using OpenAI;
@@ -24,8 +25,19 @@ public sealed class ClientFactory
 
     public ClientFactory(LlmOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.NetworkTimeoutSeconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options.NetworkTimeoutSeconds), "Must be positive.");
+        if (options.MaxRetries < 0)
+            throw new ArgumentOutOfRangeException(nameof(options.MaxRetries), "Cannot be negative.");
+
         Options = options;
-        var clientOptions = new OpenAIClientOptions { Endpoint = new Uri(options.Endpoint) };
+        var clientOptions = new OpenAIClientOptions
+        {
+            Endpoint = new Uri(options.Endpoint),
+            NetworkTimeout = TimeSpan.FromSeconds(options.NetworkTimeoutSeconds),
+            RetryPolicy = new ClientRetryPolicy(options.MaxRetries)
+        };
         // Ollama ignores the API key, but the OpenAI client requires a non-empty credential.
         _client = new OpenAIClient(new ApiKeyCredential(options.ApiKey), clientOptions);
     }

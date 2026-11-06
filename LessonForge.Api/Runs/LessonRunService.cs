@@ -80,11 +80,18 @@ public sealed class LessonRunService(
             await WriteAsync(session, "run", new { runId = session.RunId, interactive });
 
             var retrieval = LessonWorkflow.CreateRetrievalService(clients);
-            var (workflow, _) = LessonWorkflow.Build(clients, retrieval, interactive);
+            var progress = new Progress<string>(message =>
+            {
+                logger.LogInformation("Lesson run {RunId}: research: {Message}", session.RunId, message);
+                var payload = JsonSerializer.Serialize(new { stage = "Research", message }, s_json);
+                session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
+            });
+            var (workflow, _) = LessonWorkflow.Build(clients, retrieval, interactive, progress);
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 
             VerifiedLessonOutput? result = null;
+            string? failureMessage = null;
 
             await foreach (var evt in run.WatchStreamAsync().WithCancellation(ct))
             {
@@ -103,6 +110,7 @@ public sealed class LessonRunService(
                     case ExecutorFailedEvent failed:
                         logger.LogError("Lesson run {RunId}: stage {Stage} failed: {Message}",
                             session.RunId, failed.ExecutorId, failed.Data?.Message);
+                        failureMessage = $"{failed.ExecutorId} failed: {failed.Data?.Message ?? "No failure details were provided."}";
                         await WriteAsync(session, "stage", new { name = failed.ExecutorId, status = "failed", message = failed.Data?.Message });
                         break;
 
@@ -124,7 +132,10 @@ public sealed class LessonRunService(
             }
             else if (!ct.IsCancellationRequested)
             {
-                await WriteAsync(session, "error", new { message = "The run finished without producing a lesson." });
+                var message = failureMessage is null
+                    ? "The run finished without producing a lesson."
+                    : failureMessage.Length > 350 ? failureMessage[..350] + "…" : failureMessage;
+                await WriteAsync(session, "error", new { message });
             }
         }
         catch (OperationCanceledException)

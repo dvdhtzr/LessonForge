@@ -37,6 +37,19 @@ public sealed class LlmOptions
     public string EmbeddingModel { get; set; } = "nomic-embed-text:v1.5";
 
     /// <summary>
+    /// Time allowed for an individual Ollama HTTP request (including slow local inference).
+    /// The OpenAI SDK defaults to only 100 seconds, which can be insufficient when a model
+    /// is cold or partially offloaded to system RAM. Default: 10 minutes.
+    /// </summary>
+    public int NetworkTimeoutSeconds { get; set; } = 600;
+
+    /// <summary>
+    /// Number of automatic HTTP retries. Local inference can be slow and repeating a timed-out
+    /// generation request is expensive, so retry zero times by default.
+    /// </summary>
+    public int MaxRetries { get; set; } = 0;
+
+    /// <summary>
     /// Placeholder credential. Ollama does not require authentication; the OpenAI client
     /// simply needs a non-empty value.
     /// </summary>

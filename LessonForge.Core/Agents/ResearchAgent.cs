@@ -42,7 +42,8 @@ public static partial class ResearchAgent
     public static AIAgent CreateAgent(IChatClient chatClient)
         => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
 
-    public sealed partial class ResearchExecutor(AIAgent agent, RetrievalService retrieval, RagContext rag)
+    public sealed partial class ResearchExecutor(
+        AIAgent agent, RetrievalService retrieval, RagContext rag, IProgress<string>? progress = null)
         : Executor("Research")
     {
         [MessageHandler]
@@ -55,7 +56,7 @@ public static partial class ResearchAgent
             state.CurrentStep = 1;
 
             // Build the per-run RAG index and share it with the downstream stages.
-            var session = await retrieval.BuildAsync(request.Topic, progress: null, ct: cancellationToken);
+            var session = await retrieval.BuildAsync(request.Topic, progress, ct: cancellationToken);
             rag.Session = session;
 
             var queries = new[]
@@ -65,6 +66,7 @@ public static partial class ResearchAgent
                 $"{request.Topic} definition and importance",
                 $"{request.Topic} examples and process"
             };
+            progress?.Report("Searching the indexed sources for grounded facts…");
             var evidence = await RagPrompt.GatherEvidenceAsync(session, queries, ct: cancellationToken);
 
             var prompt = $"""
@@ -79,8 +81,10 @@ public static partial class ResearchAgent
                 above, and queries_used. Output structured JSON.
                 """;
 
+            progress?.Report("Asking the local model to assemble the research report…");
             var response = await agent.RunAsync<ResearchOutput>(prompt, cancellationToken: cancellationToken);
             var output = response.Result;
+            progress?.Report("Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
             output.SourceInventory = RagPrompt.InventoryCitations(session);

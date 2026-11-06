@@ -17,6 +17,7 @@ export default function RunView() {
   const [error, setError] = useState<string | null>(null)
   const [aborted, setAborted] = useState<string | null>(null)
   const [runConnected, setRunConnected] = useState(false)
+  const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -29,7 +30,11 @@ export default function RunView() {
       if (controller.signal.aborted) return
       void generate(state.request, state.interactive, {
         onRun: (e) => { runIdRef.current = e.runId; setRunConnected(true) },
-        onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
+        onStage: (e) => {
+          setStatuses((prev) => ({ ...prev, [e.name]: e.status }))
+          if (e.name !== 'Research' || e.status !== 'started') setProgressMessage(null)
+        },
+        onProgress: (e) => setProgressMessage(e.message),
         onGate: (e) => setGate(e),
         onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
         onError: (m) => setError(m),
@@ -80,6 +85,9 @@ export default function RunView() {
         </p>
       )}
       <StageTimeline statuses={statuses} />
+      {progressMessage && !error && !aborted && (
+        <p className="muted" role="status" aria-live="polite">{progressMessage}</p>
+      )}
 
       {error && <p className="error" style={{ marginTop: 16 }}>Error: {error}</p>}
       {aborted && <p style={{ marginTop: 16 }}>{aborted}</p>}

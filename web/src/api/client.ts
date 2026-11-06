@@ -25,6 +25,7 @@ export const api = {
 export interface GenerateHandlers {
   onRun?: (e: RunEvent) => void
   onStage?: (e: StageEvent) => void
+  onProgress?: (e: { stage: string; message: string }) => void
   onGate?: (e: GateEvent) => void
   onComplete?: (e: CompleteEvent) => void
   onError?: (message: string) => void
@@ -80,6 +81,7 @@ function dispatch(frame: string, h: GenerateHandlers) {
   switch (event) {
     case 'run': h.onRun?.(data); break
     case 'stage': h.onStage?.(data); break
+    case 'progress': h.onProgress?.(data); break
     case 'gate': h.onGate?.(data); break
     case 'complete': h.onComplete?.(data); break
     case 'error': h.onError?.(data.message ?? 'Unknown error'); break
