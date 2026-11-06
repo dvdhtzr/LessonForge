@@ -1,6 +1,8 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using Microsoft.Extensions.AI;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace LessonForge.Core.Rag;
 
@@ -32,9 +34,22 @@ public sealed class RetrievalSession(InMemoryVectorIndex index, IReadOnlyList<So
 
     /// <summary>The distinct sources, as citations.</summary>
     public IReadOnlyList<Citation> Citations { get; } = sources
-        .GroupBy(s => s.Url)
-        .Select(g => new Citation { Title = g.First().Title, Url = g.Key })
-        .ToList();
+        .GroupBy(s => s.Url, StringComparer.OrdinalIgnoreCase)
+        .Select(g =>
+        {
+            var source = g.First();
+            return new Citation
+            {
+                Title = source.Title,
+                Url = source.Url,
+                ProviderId = source.ProviderId,
+                LicenseId = source.Rights?.LicenseId ?? "",
+                RightsPolicyUrl = source.Rights?.PolicyUrl ?? "",
+                Attribution = source.Rights?.Attribution ?? "",
+                DocumentSha256 = Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(source.Text)))
+            };
+        }).ToList();
 
     public Task<IReadOnlyList<ScoredChunk>> SearchAsync(string query, int k = 6, CancellationToken ct = default)
         => index.SearchAsync(query, k, ct);
@@ -49,10 +64,12 @@ public sealed class RetrievalService(
     SourceFetcher fetcher,
     IEmbeddingGenerator<string, Embedding<float>> embeddings,
     RetrievalOptions? options = null,
-    Chunker? chunker = null)
+    Chunker? chunker = null,
+    SourceRegistry? registry = null)
 {
     private readonly RetrievalOptions _options = options ?? new RetrievalOptions();
     private readonly Chunker _chunker = chunker ?? new Chunker();
+    private readonly SourceRegistry _registry = registry ?? new SourceRegistry();
 
     /// <summary>
     /// Builds a <see cref="RetrievalSession"/> for a topic. <paramref name="progress"/>, if given,
@@ -66,7 +83,7 @@ public sealed class RetrievalService(
 
         var documents = new List<SourceDocument>();
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var referenceUrls = new List<string>();
+        var unreviewedReferenceCount = 0;
 
         // Seed articles + their linked articles and cited references.
         for (var i = 0; i < seedTitles.Count; i++)
@@ -94,39 +111,46 @@ public sealed class RetrievalService(
                 }
             }
 
-            foreach (var refUrl in await wikipedia.GetExternalLinksAsync(title, 40, ct))
-                referenceUrls.Add(refUrl);
+            // Wikipedia's external links are discovery metadata, NOT automatic
+            // consent to retrieve or ingest another publisher's full content.
+            var external = await wikipedia.GetExternalLinksAsync(title, 40, ct);
+            unreviewedReferenceCount += external.Count;
         }
 
-        // Fetch a bounded set of cited references concurrently.
-        var toFetch = referenceUrls.Distinct(StringComparer.OrdinalIgnoreCase).Take(_options.MaxReferences).ToList();
-        if (toFetch.Count > 0)
-            progress?.Report($"Fetching {toFetch.Count} cited reference(s)…");
+        if (unreviewedReferenceCount > 0)
+            progress?.Report($"Skipped {unreviewedReferenceCount} external reference link(s): " +
+                "publisher-level rights have not been established.");
 
-        using var gate = new SemaphoreSlim(_options.FetchConcurrency);
-        var fetchTasks = toFetch.Select(async refUrl =>
-        {
-            await gate.WaitAsync(ct);
-            try { return await fetcher.TryFetchAsync(refUrl, citedBy: seedTitles.FirstOrDefault(), ct); }
-            finally { gate.Release(); }
-        });
+        // Only explicit, reviewed adapters can add further material. Candidate
+        // providers failing or returning unusable records cannot block Wikipedia.
+        var optional = await _registry.RetrieveEligibleAsync(topic, progress, ct);
+        foreach (var source in optional)
+            if (seenUrls.Add(source.Url))
+                documents.Add(source);
 
-        foreach (var fetched in await Task.WhenAll(fetchTasks))
+        // This is the final model-input boundary, regardless of which adapter
+        // produced a document. No missing/unknown rights flow into embeddings.
+        var admitted = new List<SourceDocument>();
+        foreach (var document in documents)
         {
-            if (fetched is not null && seenUrls.Add(fetched.Url))
-            {
-                documents.Add(fetched);
-                progress?.Report($"Fetched reference: {fetched.Title}");
-            }
+            var decision = SourcePermissionGate.Evaluate(document);
+            if (decision.Allowed)
+                admitted.Add(document);
+            else
+                progress?.Report($"Skipped {document.ProviderId} evidence: {decision.Reason}");
         }
+        if (admitted.Count == 0)
+            throw new InvalidOperationException(
+                "No rights-eligible source evidence could be retrieved. " +
+                "The lesson cannot be generated from unsupported material.");
 
         // Chunk + embed everything into a fresh index.
         progress?.Report("Embedding sources into the vector index…");
-        var chunks = _chunker.ChunkAll(documents);
+        var chunks = _chunker.ChunkAll(admitted);
         var index = new InMemoryVectorIndex(embeddings);
         await index.IngestAsync(chunks, ct);
-        progress?.Report($"Indexed {chunks.Count} chunk(s) from {documents.Count} source(s).");
+        progress?.Report($"Indexed {chunks.Count} chunk(s) from {admitted.Count} rights-eligible source(s).");
 
-        return new RetrievalSession(index, documents);
+        return new RetrievalSession(index, admitted);
     }
 }
