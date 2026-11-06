@@ -61,9 +61,10 @@ public static class StructuredAgentOutput
         // syntactically valid prefix must not be accepted as a complete lesson.
         if (string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                $"{stage} output was truncated: the model reached its output-token limit " +
-                $"after {text?.Length ?? 0} characters. Increase LessonForge:Llm:MaxOutputTokens " +
-                "or reduce the requested output; incomplete JSON is never accepted.");
+                $"{stage} output was truncated after {text?.Length ?? 0} characters " +
+                "(finish reason: length). The generation hit a token limit. Check " +
+                "LessonForge:Llm:MaxOutputTokens and Ollama's allocated context window " +
+                "(`ollama ps`); incomplete JSON is never accepted.");
 
         if (string.IsNullOrWhiteSpace(text))
         {
