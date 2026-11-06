@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.Text;
+using System.Security.Cryptography;
 
 namespace LessonForge.Core.Rag;
 
@@ -26,6 +27,7 @@ public sealed class Chunker
     {
         var chunks = new List<SourceChunk>();
         var index = 0;
+        var sha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(document.Text)));
 
         foreach (var window in BuildWindows(document.Text))
         {
@@ -35,7 +37,13 @@ public sealed class Chunker
                 Text = window,
                 SourceTitle = document.Title,
                 SourceUrl = document.Url,
-                Kind = document.Kind
+                Kind = document.Kind,
+                ProviderId = document.ProviderId,
+                CanonicalId = document.CanonicalId,
+                RetrievedAtUtc = document.RetrievedAtUtc,
+                LicenseId = document.Rights?.LicenseId ?? "",
+                RightsPolicyUrl = document.Rights?.PolicyUrl ?? "",
+                DocumentSha256 = sha256
             });
         }
 

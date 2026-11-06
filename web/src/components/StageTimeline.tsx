@@ -2,15 +2,19 @@ import type { StageStatus } from '../types'
 
 const STAGES: { id: string; label: string }[] = [
   { id: 'Research', label: 'Research Librarian — gathering & citing sources' },
+  { id: 'PerspectiveAnalysis', label: 'Perspective Analyst — examining evidence and interpretations' },
   { id: 'LessonPlanner', label: 'Curriculum Designer — building the lesson' },
   { id: 'QuizGenerator', label: 'Assessment Writer — writing the quiz' },
   { id: 'FactCheck', label: 'Accuracy Editor — verifying citations' },
 ]
 
-export default function StageTimeline({ statuses }: { statuses: Record<string, StageStatus> }) {
+export default function StageTimeline({ statuses, explorePerspectives = false }: {
+  statuses: Record<string, StageStatus>
+  explorePerspectives?: boolean
+}) {
   return (
     <ul className="timeline">
-      {STAGES.map((s) => {
+      {STAGES.filter((s) => s.id !== 'PerspectiveAnalysis' || explorePerspectives).map((s) => {
         const status = statuses[s.id]
         return (
           <li key={s.id}>

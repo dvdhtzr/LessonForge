@@ -27,6 +27,10 @@ public sealed class LessonRequest
     [Description("Optional extra context about the audience (prior knowledge, setting, accommodations).")]
     public string AudienceNotes { get; set; } = "";
 
+    [JsonPropertyName("explore_perspectives")]
+    [Description("Ask a separate agent to investigate credible differing interpretations of the topic.")]
+    public bool ExplorePerspectives { get; set; }
+
     [JsonPropertyName("quiz_config")]
     public QuizConfig QuizConfig { get; set; } = new();
 }
@@ -63,6 +67,35 @@ public sealed class CitationRef
 
 // ─────────────────────── Research stage ───────────────────────
 
+/// <summary>
+/// LLM-only output: keep the factual Research Librarian schema unchanged when
+/// the optional Perspective Analyst is switched on or off. The workflow envelope
+/// adds perspectives later, after the separate agent and educator approval.
+/// </summary>
+[Description("Source-grounded facts, without any model-authored perspective analysis.")]
+public sealed class ResearchDraftOutput
+{
+    [JsonPropertyName("topic_summary")]
+    public string TopicSummary { get; set; } = "";
+
+    [JsonPropertyName("grounded_facts")]
+    public List<GroundedFact> GroundedFacts { get; set; } = new();
+
+    [JsonPropertyName("queries_used")]
+    public List<string> QueriesUsed { get; set; } = new();
+
+    [JsonPropertyName("source_inventory")]
+    public List<CitationRef> SourceInventory { get; set; } = new();
+
+    public ResearchOutput ToResearchOutput() => new()
+    {
+        TopicSummary = TopicSummary,
+        GroundedFacts = GroundedFacts,
+        QueriesUsed = QueriesUsed,
+        SourceInventory = SourceInventory
+    };
+}
+
 [Description("The Research Librarian's grounded findings.")]
 public sealed class ResearchOutput
 {
@@ -81,6 +114,10 @@ public sealed class ResearchOutput
     [JsonPropertyName("source_inventory")]
     [Description("The distinct sources retrieved for this topic.")]
     public List<CitationRef> SourceInventory { get; set; } = new();
+
+    [JsonPropertyName("perspectives")]
+    [Description("Optional educator-reviewed analysis of credible differing interpretations.")]
+    public PerspectiveAnalysisOutput? Perspectives { get; set; }
 }
 
 [Description("A single fact with its supporting citations.")]
@@ -92,6 +129,55 @@ public sealed class GroundedFact
 
     [JsonPropertyName("citations")]
     [Description("The sources that support this statement.")]
+    public List<CitationRef> Citations { get; set; } = new();
+}
+
+// ─────────────── Optional perspective-analysis stage ───────────────
+
+/// <summary>
+/// A separate evidence-aware MAF agent produces this optional review. A conclusion that
+/// no meaningful disagreement is established is a valid result, not a reason to invent sides.
+/// </summary>
+[Description("Credible perspectives and the evidence supporting or limiting them.")]
+public sealed class PerspectiveAnalysisOutput
+{
+    [JsonPropertyName("status")]
+    [Description("supported_disagreement, no_substantive_disagreement, or insufficient_evidence.")]
+    public string Status { get; set; } = "";
+
+    [JsonPropertyName("perspectives")]
+    [Description("Two or three sourced interpretations only when supported_disagreement.")]
+    public List<PerspectiveViewpoint> Perspectives { get; set; } = new();
+
+    [JsonPropertyName("areas_of_agreement")]
+    [Description("Evidence-backed observations or facts the credible interpretations share.")]
+    public List<string> AreasOfAgreement { get; set; } = new();
+
+    [JsonPropertyName("evidence_limitations")]
+    [Description("Why evidence is insufficient, uncertain, disputed or unevenly distributed.")]
+    public string EvidenceLimitations { get; set; } = "";
+
+    [JsonPropertyName("discussion_questions")]
+    [Description("Age-appropriate prompts for comparing evidence rather than demanding agreement.")]
+    public List<string> DiscussionQuestions { get; set; } = new();
+}
+
+[Description("One sourced viewpoint or scholarly interpretation.")]
+public sealed class PerspectiveViewpoint
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("interpretation")]
+    public string Interpretation { get; set; } = "";
+
+    [JsonPropertyName("evidence_basis")]
+    public string EvidenceBasis { get; set; } = "";
+
+    [JsonPropertyName("limitations")]
+    public string Limitations { get; set; } = "";
+
+    [JsonPropertyName("citations")]
     public List<CitationRef> Citations { get; set; } = new();
 }
 
@@ -195,11 +281,35 @@ public sealed class QuizQuestion
 
 // ──────────────────── Fact-check stage ────────────────────
 
+/// <summary>
+/// Compact model-produced review only. The application joins these findings with
+/// the educator-approved plan and generated quiz; the LLM never rewrites either.
+/// </summary>
+[Description("Accuracy Editor findings about an existing lesson and quiz, not rewritten content.")]
+public sealed class FactCheckReviewOutput
+{
+    [JsonPropertyName("flags")]
+    [Description("Unsupported or misleading claims; use an empty array if none were found.")]
+    public List<VerificationFlag> Flags { get; set; } = new();
+
+    [JsonPropertyName("citation_coverage")]
+    [Description("Estimated fraction from 0 to 1 of reviewed claims supported by the evidence.")]
+    public double CitationCoverage { get; set; }
+
+    [JsonPropertyName("notes")]
+    [Description("Short neutral explanation of results, evidence limitations, and uncertainty.")]
+    public string Notes { get; set; } = "";
+}
+
 [Description("The Accuracy Editor's verified, citation-checked lesson and quiz.")]
 public sealed class VerifiedLessonOutput
 {
     [JsonPropertyName("plan")]
     public LessonPlanOutput Plan { get; set; } = new();
+
+    [JsonPropertyName("perspectives")]
+    [Description("Educator-approved analysis when the optional perspectives mode was requested.")]
+    public PerspectiveAnalysisOutput? Perspectives { get; set; }
 
     [JsonPropertyName("quiz")]
     public QuizOutput Quiz { get; set; } = new();
@@ -215,19 +325,84 @@ public sealed class VerifiedLessonOutput
     [JsonPropertyName("notes")]
     [Description("Overall notes from the accuracy review.")]
     public string Notes { get; set; } = "";
+
+    [JsonPropertyName("source_records")]
+    [Description("Host-authored evidence provenance; never generated by an agent.")]
+    public List<SourceEvidenceRecord> SourceRecords { get; set; } = new();
 }
 
-[Description("A flagged, insufficiently-supported claim.")]
+/// <summary>
+/// Stored metadata for the exact source document retrieved for this lesson.
+/// Does not retain the full document or make a claim that its content is credible.
+/// </summary>
+public sealed class SourceEvidenceRecord
+{
+    [JsonPropertyName("provider_id")]
+    public string ProviderId { get; set; } = "";
+
+    [JsonPropertyName("canonical_id")]
+    public string CanonicalId { get; set; } = "";
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = "";
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = "";
+
+    [JsonPropertyName("license_id")]
+    public string LicenseId { get; set; } = "";
+
+    [JsonPropertyName("policy_url")]
+    public string PolicyUrl { get; set; } = "";
+
+    [JsonPropertyName("attribution")]
+    public string Attribution { get; set; } = "";
+
+    [JsonPropertyName("rights_scope")]
+    public string RightsScope { get; set; } = "";
+
+    [JsonPropertyName("rights_reviewed_on")]
+    public DateOnly RightsReviewedOn { get; set; }
+
+    [JsonPropertyName("retrieved_at_utc")]
+    public DateTimeOffset RetrievedAtUtc { get; set; }
+
+    [JsonPropertyName("document_sha256")]
+    public string DocumentSha256 { get; set; } = "";
+}
+
+[Description("An actionable, AI-estimated educational review finding. IDs are assigned by the host.")]
 public sealed class VerificationFlag
 {
+    [JsonPropertyName("id")]
+    [Description("Leave empty. The application assigns a deterministic ID after review.")]
+    public string Id { get; set; } = "";
+
     [JsonPropertyName("claim")]
+    [Description("Brief name of the affected claim or concept, used to identify the root issue.")]
     public string Claim { get; set; } = "";
 
     [JsonPropertyName("issue")]
-    [Description("What is wrong or unverified about the claim.")]
+    [Description("Short explanation of the problem and why it matters for learners.")]
     public string Issue { get; set; } = "";
 
     [JsonPropertyName("severity")]
-    [Description("High, Medium, or Low.")]
+    [Description("Exactly High, Medium, Low, or Informational, according to the review rubric.")]
     public string Severity { get; set; } = "Medium";
+
+    [JsonPropertyName("category")]
+    [Description("One allowed snake_case educational review category.")]
+    public string Category { get; set; } = "";
+
+    [JsonPropertyName("location")]
+    [Description("S1, S2 etc. for a lesson section; Q1, Q2 etc. for a quiz question; or GENERAL.")]
+    public string Location { get; set; } = "";
+
+    [JsonPropertyName("recommendation")]
+    [Description("A concrete educator action that addresses this exact issue.")]
+    public string Recommendation { get; set; } = "";
+
+    [JsonPropertyName("evidence")]
+    [Description("Optional brief description of relevant supplied evidence or its absence; never invent URLs.")]
+    public string Evidence { get; set; } = "";
 }

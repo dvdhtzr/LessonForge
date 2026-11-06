@@ -84,7 +84,7 @@ export default function RunView() {
           {runConnected ? 'Connected — preparing the research stage…' : 'Connecting to the lesson service…'}
         </p>
       )}
-      <StageTimeline statuses={statuses} />
+      <StageTimeline statuses={statuses} explorePerspectives={state.request.explore_perspectives} />
       {progressMessage && !error && !aborted && (
         <p className="muted" role="status" aria-live="polite">{progressMessage}</p>
       )}
@@ -101,6 +101,7 @@ export default function RunView() {
         <GateReview
           key={gate.requestId}
           gate={gate}
+          explorePerspectives={state.request.explore_perspectives}
           onApprove={(edited) => resolveGate(true, edited)}
           onAbort={() => resolveGate(false)}
         />

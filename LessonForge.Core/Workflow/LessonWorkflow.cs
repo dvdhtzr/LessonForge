@@ -17,7 +17,7 @@ public static class LessonWorkflow
 {
     /// <summary>The stage names, in order, for UI progress rendering.</summary>
     public static readonly IReadOnlyList<string> StageOrder =
-        ["Research", "LessonPlanner", "QuizGenerator", "FactCheck"];
+        ["Research", "PerspectiveAnalysis", "LessonPlanner", "QuizGenerator", "FactCheck"];
 
     /// <summary>
     /// Builds the lesson-design workflow. When <paramref name="interactive"/> is true, two
@@ -26,43 +26,78 @@ public static class LessonWorkflow
     /// by every executor and carries the live retrieval session.
     /// </summary>
     public static (MafWorkflow Workflow, RagContext Rag) Build(
-        ClientFactory clients, RetrievalService retrieval, bool interactive, IProgress<string>? researchProgress = null)
+        ClientFactory clients, RetrievalService retrieval, bool interactive,
+        IProgress<string>? researchProgress = null, bool explorePerspectives = false)
     {
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
         var maxOutputTokens = clients.Options.MaxOutputTokens;
 
         var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat, maxOutputTokens), retrieval, rag, researchProgress);
+        var perspectives = explorePerspectives
+            ? new PerspectiveAnalystAgent.PerspectiveAnalysisExecutor(
+                PerspectiveAnalystAgent.CreateAgent(chat, maxOutputTokens), retrieval, rag)
+            : null;
         var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat, maxOutputTokens), rag);
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat, maxOutputTokens), rag);
         var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat, maxOutputTokens), rag);
 
-        if (!interactive)
+        // Four explicit graphs keep the standard (toggle-off) flow exactly as before.
+        // The optional agent is between factual research and the existing educator
+        // research gate, so approval covers both facts and identified viewpoints.
+        if (!interactive && perspectives is null)
         {
-            var w = new WorkflowBuilder(research)
+            var workflow = new WorkflowBuilder(research)
                 .AddEdge(research, planner)
                 .AddEdge(planner, quiz)
                 .AddEdge(quiz, factcheck)
                 .WithOutputFrom(factcheck)
                 .WithName("lesson-design-crew")
                 .Build();
-            return (w, rag);
+            return (workflow, rag);
+        }
+
+        if (!interactive)
+        {
+            var workflow = new WorkflowBuilder(research)
+                .AddEdge(research, perspectives!)
+                .AddEdge(perspectives!, planner)
+                .AddEdge(planner, quiz)
+                .AddEdge(quiz, factcheck)
+                .WithOutputFrom(factcheck)
+                .WithName("lesson-design-crew-perspectives")
+                .Build();
+            return (workflow, rag);
         }
 
         var approveResearch = RequestPort.Create<ResearchOutput, ResearchOutput>("approve-research");
         var approvePlan = RequestPort.Create<LessonPlanOutput, LessonPlanOutput>("approve-plan");
 
-        var interactiveWorkflow = new WorkflowBuilder(research)
-            .AddEdge(research, approveResearch)
+        if (perspectives is null)
+        {
+            var workflow = new WorkflowBuilder(research)
+                .AddEdge(research, approveResearch)
+                .AddEdge(approveResearch, planner)
+                .AddEdge(planner, approvePlan)
+                .AddEdge(approvePlan, quiz)
+                .AddEdge(quiz, factcheck)
+                .WithOutputFrom(factcheck)
+                .WithName("lesson-design-crew-interactive")
+                .Build();
+            return (workflow, rag);
+        }
+
+        var perspectiveWorkflow = new WorkflowBuilder(research)
+            .AddEdge(research, perspectives)
+            .AddEdge(perspectives, approveResearch)
             .AddEdge(approveResearch, planner)
             .AddEdge(planner, approvePlan)
             .AddEdge(approvePlan, quiz)
             .AddEdge(quiz, factcheck)
             .WithOutputFrom(factcheck)
-            .WithName("lesson-design-crew-interactive")
+            .WithName("lesson-design-crew-perspectives-interactive")
             .Build();
-
-        return (interactiveWorkflow, rag);
+        return (perspectiveWorkflow, rag);
     }
 
     /// <summary>
@@ -75,7 +110,14 @@ public static class LessonWorkflow
         var wikipedia = new WikipediaClient(CreateHttpClient());
         var fetcher = new SourceFetcher(CreateHttpClient());
         var embeddings = clients.CreateEmbeddingGenerator();
-        return new RetrievalService(wikipedia, fetcher, embeddings, options);
+        var registry = new SourceRegistry(
+        [
+            new UsgsEarthquakeProvider(CreateHttpClient()),
+            new LocLawmakingCatalogProvider(CreateHttpClient()),
+            new GutenbergCatalogProvider(CreateHttpClient()),
+            new SmithsonianOpenAccessMetadataProvider(CreateHttpClient())
+        ]);
+        return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
     }
 
     private static HttpClient CreateHttpClient()

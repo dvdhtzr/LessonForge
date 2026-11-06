@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import PlanRenderer from '../components/PlanRenderer'
 import QuizRenderer from '../components/QuizRenderer'
+import PerspectivePanel from '../components/PerspectivePanel'
+import AccuracyReview from '../components/AccuracyReview'
 
 type Tab = 'plan' | 'quiz'
 
@@ -22,7 +24,6 @@ export default function LessonView() {
   if (error || !data) return <div className="card error">Could not load this lesson.</div>
 
   const { result } = data
-  const coverage = Math.round((result.citation_coverage ?? 0) * 100)
 
   return (
     <>
@@ -45,21 +46,28 @@ export default function LessonView() {
           : <QuizRenderer quiz={result.quiz} mode={audience} />}
       </div>
 
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Accuracy review</h3>
-        <p>
-          Citation coverage:{' '}
-          <span className={`pill ${coverage >= 80 ? 'good' : coverage >= 50 ? 'warn' : 'bad'}`}>{coverage}%</span>
-        </p>
-        {result.notes && <p className="muted">{result.notes}</p>}
-        {result.flags?.length > 0 ? (
-          <ul>
-            {result.flags.map((f, i) => (
-              <li key={i}><span className={`pill ${f.severity.toLowerCase() === 'high' ? 'bad' : f.severity.toLowerCase() === 'low' ? 'good' : 'warn'}`}>{f.severity}</span> {f.claim} — <span className="muted">{f.issue}</span></li>
-            ))}
-          </ul>
-        ) : <p className="muted">No unsupported claims flagged.</p>}
-      </div>
+      {result.perspectives && (
+        <div className="card">
+          <PerspectivePanel analysis={result.perspectives} />
+        </div>
+      )}
+
+      {audience === 'teacher' && (
+        <div className="card">
+          <AccuracyReview
+            flags={result.flags || []}
+            coverage={result.citation_coverage ?? 0}
+            notes={result.notes || ''}
+            onNavigate={(location) => {
+              setTab(location.startsWith('Q') ? 'quiz' : 'plan')
+              window.requestAnimationFrame(() => {
+                document.getElementById(`lesson-${location.toLowerCase()}`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              })
+            }}
+          />
+        </div>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Export</h3>

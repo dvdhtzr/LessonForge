@@ -105,11 +105,87 @@ public static class StructuredAgentOutput
         }
 
         var missing = MissingRequiredContent(value);
+
+        // Numeric DTO defaults hide an omitted correct_index (zero is also a valid
+        // value), so inspect raw property presence for each question as well.
+        if (value is QuizOutput quizOutput && quizOutput.Questions is { Count: > 0 })
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("questions", out var questionItems) &&
+                questionItems.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                foreach (var item in questionItems.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object ||
+                        !item.TryGetProperty("correct_index", out _))
+                        missing.Add($"questions[{index}].correct_index");
+                    index++;
+                }
+            }
+        }
+
+        // The review DTO initializes flags to [] and coverage to zero. Both are
+        // potentially valid values, so additionally demand explicit model keys.
+        if (value is FactCheckReviewOutput)
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            foreach (var field in new[] { "flags", "citation_coverage", "notes" })
+            {
+                if (root.ValueKind != JsonValueKind.Object ||
+                    !root.TryGetProperty(field, out _))
+                {
+                    if (!missing.Contains(field))
+                        missing.Add(field);
+                }
+            }
+        }
+
         if (missing.Count > 0)
+        {
+            // With System.Text.Json's default-initialized DTO properties, both a missing
+            // array and a supplied empty array look identical after deserialization.
+            // Distinguish them without exposing generated text or source material.
+            var requiredArray = value switch
+            {
+                ResearchOutput when missing.Contains("grounded_facts") => "grounded_facts",
+                ResearchDraftOutput when missing.Contains("grounded_facts") => "grounded_facts",
+                QuizOutput when missing.Contains("questions") => "questions",
+                _ => null
+            };
+            if (requiredArray is not null)
+            {
+                using var json = JsonDocument.Parse(text);
+                var root = json.RootElement;
+                string detail;
+                if (root.ValueKind != JsonValueKind.Object ||
+                    !root.TryGetProperty(requiredArray, out var array))
+                {
+                    detail = "property absent";
+                }
+                else if (array.ValueKind == JsonValueKind.Array)
+                {
+                    detail = array.GetArrayLength() == 0 ? "empty array" : "invalid entries";
+                }
+                else
+                {
+                    detail = "not an array";
+                }
+
+                missing[missing.IndexOf(requiredArray)] = $"{requiredArray} ({detail})";
+            }
+
+            var kind = value is FactCheckReviewOutput
+                ? "review fields"
+                : "lesson content or citation arrays";
             throw new InvalidOperationException(
-                $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
+                $"{stage} returned valid JSON but omitted required {kind}. " +
                 $"Missing or invalid fields: {string.Join(", ", missing)}. " +
                 "The result was rejected rather than treating an empty payload as successful.");
+        }
 
         return value;
     }
@@ -121,6 +197,10 @@ public static class StructuredAgentOutput
         var missing = new List<string>();
         switch (value)
         {
+            case ResearchDraftOutput draft:
+                missing.AddRange(MissingRequiredContent(draft.ToResearchOutput()));
+                break;
+
             case ResearchOutput research:
                 if (string.IsNullOrWhiteSpace(research.TopicSummary)) missing.Add("topic_summary");
                 if (research.GroundedFacts is not { Count: > 0 })
@@ -160,7 +240,42 @@ public static class StructuredAgentOutput
                 break;
 
             case QuizOutput quiz:
-                if (quiz.Questions is not { Count: > 0 }) missing.Add("questions");
+                if (quiz.Questions is not { Count: > 0 })
+                {
+                    missing.Add("questions");
+                }
+                else
+                {
+                    for (var index = 0; index < quiz.Questions.Count; index++)
+                    {
+                        var question = quiz.Questions[index];
+                        if (question is null)
+                        {
+                            missing.Add($"questions[{index}]");
+                            continue;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(question.Stem))
+                            missing.Add($"questions[{index}].stem");
+                        if (question.Options is not { Count: >= 2 } ||
+                            question.Options.Any(string.IsNullOrWhiteSpace))
+                            missing.Add($"questions[{index}].options");
+                        if (question.Options is { Count: > 0 } &&
+                            (question.CorrectIndex < 0 || question.CorrectIndex >= question.Options.Count))
+                            missing.Add($"questions[{index}].correct_index");
+                        if (string.IsNullOrWhiteSpace(question.Explanation))
+                            missing.Add($"questions[{index}].explanation");
+                        if (question.Citations is not { Count: > 0 } ||
+                            question.Citations.Any(c => c is null ||
+                                string.IsNullOrWhiteSpace(c.Title) ||
+                                string.IsNullOrWhiteSpace(c.Url)))
+                            missing.Add($"questions[{index}].citations");
+                    }
+                }
+                break;
+
+            case FactCheckReviewOutput review:
+                missing.AddRange(AccuracyReviewPolicy.InvalidFields(review));
                 break;
 
             case VerifiedLessonOutput verified:

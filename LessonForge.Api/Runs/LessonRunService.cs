@@ -86,7 +86,8 @@ public sealed class LessonRunService(
                 var payload = JsonSerializer.Serialize(new { stage = "Research", message }, s_json);
                 session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
             });
-            var (workflow, _) = LessonWorkflow.Build(clients, retrieval, interactive, progress);
+            var (workflow, _) = LessonWorkflow.Build(
+                clients, retrieval, interactive, progress, request.ExplorePerspectives);
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 

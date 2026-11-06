@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using LessonForge.Core.Workflow;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
@@ -66,11 +67,44 @@ public static partial class LessonPlannerAgent
             if (research.GroundedFacts is not { Count: > 0 })
                 throw new InvalidOperationException(
                     "LessonPlanner received no approved research facts.");
+            if (request.ExplorePerspectives && research.Perspectives is null)
+                throw new InvalidOperationException(
+                    "LessonPlanner is missing educator-approved perspective analysis.");
+            if (research.Perspectives is not null)
+            {
+                var authoritativeSources = rag.Session is { } sources
+                    ? RagPrompt.InventoryCitations(sources)
+                    : throw new InvalidOperationException(
+                        "LessonPlanner cannot verify perspective citations: source index is missing.");
+                if (rag.PerspectiveSession is { } additional)
+                    authoritativeSources.AddRange(RagPrompt.InventoryCitations(additional));
+                PerspectiveAnalysisValidator.Validate(
+                    research.Perspectives, authoritativeSources);
+            }
+            var knownSources = rag.Session is { } primarySession
+                ? primarySession.Citations.Concat(
+                    rag.PerspectiveSession?.Citations ?? []).ToList()
+                : throw new InvalidOperationException(
+                    "LessonPlanner cannot verify citations without the source index.");
+            foreach (var fact in research.GroundedFacts)
+                SourceCitationValidator.RequireRetrieved(
+                    fact.Citations, knownSources, "Educator-approved research fact");
+            SourceCitationValidator.RequireRetrieved(
+                research.SourceInventory, knownSources, "Research source inventory");
+
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
                 $"{i + 1}. {f.Statement} [sources: {string.Join("; ", f.Citations.Select(c => $"{c.Title} ({c.Url})"))}]"));
+            var perspectives = PerspectivePrompt.ForLesson(research.Perspectives);
+            var perspectiveInstruction = research.Perspectives?.Status == PerspectiveAnalysisValidator.Supported
+                ? "Include a dedicated section comparing these credible interpretations, their supporting evidence, and limitations. Explain the distinction between perspectives and established facts. Make the activity age-appropriate. Do not assign equal credibility without evidence."
+                : research.Perspectives is not null
+                    ? "Do not manufacture a disagreement: the approved analysis did not establish two credible competing interpretations."
+                    : "";
 
+            // Two-dollar interpolation lets ordinary JSON braces remain literal while
+            // {{expression}} still inserts the educator-approved values.
             var prompt = $$"""
                 Design a lesson plan for this audience.
 
@@ -83,6 +117,9 @@ public static partial class LessonPlannerAgent
 
                 GROUNDED FACTS (use only these; keep their source URLs as citations):
                 {{facts}}
+
+                {{perspectives}}
+                {{perspectiveInstruction}}
 
                 Set grade_band to "{{gradeBand}}" and calibrate all explanations and activities to age {{request.AudienceAge}}.
                 Return one complete JSON object using exactly these top-level keys:
@@ -121,7 +158,12 @@ public static partial class LessonPlannerAgent
             // The inventory was collected by the retrieval system, not fabricated by an LLM.
             if (output.Citations is not { Count: > 0 })
                 output.Citations = research.SourceInventory;
+            SourceCitationValidator.RequireRetrieved(
+                output.Citations, knownSources, "Curriculum Designer");
 
+            // The research arriving through the RequestPort is the educator-approved
+            // version, potentially edited. Preserve it over the pre-approval copy.
+            state.Research = research;
             state.Plan = output;
             state.CurrentStep = 3;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);

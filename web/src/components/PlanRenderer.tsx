@@ -22,7 +22,7 @@ export default function PlanRenderer({ plan }: { plan: LessonPlanOutput }) {
       )}
 
       {plan.sections?.map((s, i) => (
-        <section key={i}>
+        <section key={i} id={`lesson-s${i + 1}`}>
           <h3>{s.title}{s.duration_minutes > 0 && <span className="muted"> · {s.duration_minutes} min</span>}</h3>
           <p style={{ whiteSpace: 'pre-wrap' }}>{s.body}</p>
           {s.activities?.length > 0 && (

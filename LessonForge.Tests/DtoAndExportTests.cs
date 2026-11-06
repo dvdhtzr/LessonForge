@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LessonForge.Api.Export;
 using LessonForge.Api.Persistence;
+using LessonForge.Core.Agents;
 using LessonForge.Core.Dto;
 using Xunit;
 
@@ -75,6 +76,153 @@ public class DtoAndExportTests
         Assert.True(pdf.Content.Length > 500);
         Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
         Assert.EndsWith(".pdf", pdf.FileName);
+    }
+
+    [Fact]
+    public void PerspectiveAnalysis_RoundTripsAndAppearsInStudentAndTeacherExports()
+    {
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        var sample = Sample();
+        sample.Perspectives = new PerspectiveAnalysisOutput
+        {
+            Status = PerspectiveAnalysisValidator.Supported,
+            Perspectives =
+            [
+                new PerspectiveViewpoint
+                {
+                    Name = "Historical interpretation one",
+                    Interpretation = "This reading emphasizes documented changes.",
+                    EvidenceBasis = "A named historical document.",
+                    Limitations = "One account does not represent everyone.",
+                    Citations = [new CitationRef { Title = "Primary source", Url = "https://example.org/history" }]
+                },
+                new PerspectiveViewpoint
+                {
+                    Name = "Historical interpretation two",
+                    Interpretation = "This reading emphasizes a different consequence.",
+                    EvidenceBasis = "Another cited historical document.",
+                    Limitations = "The surviving evidence is partial.",
+                    Citations = [new CitationRef { Title = "Secondary source", Url = "https://example.org/history2" }]
+                }
+            ],
+            AreasOfAgreement = ["Both discuss the same event."],
+            EvidenceLimitations = "Sources vary in perspective.",
+            DiscussionQuestions = ["How do the two accounts differ?"]
+        };
+
+        var stored = new StoredLesson(42, "Photosynthesis", 12,
+            DateTime.UtcNow, new LessonRequest { Topic = "Photosynthesis", AudienceAge = 12,
+                ExplorePerspectives = true }, sample);
+        var view = StoredLessonView.From(stored);
+        Assert.Same(sample.Perspectives, view.Perspectives);
+
+        var serialized = JsonSerializer.Serialize(sample, Web);
+        var restored = JsonSerializer.Deserialize<VerifiedLessonOutput>(serialized, Web)!;
+        Assert.Equal("supported_disagreement", restored.Perspectives?.Status);
+
+        foreach (var audience in new[] { Audience.Student, Audience.Teacher })
+        {
+            var md = System.Text.Encoding.UTF8.GetString(
+                LessonExporter.Export(view, ExportFormat.Markdown, audience).Content);
+            Assert.Contains("Historical interpretation one", md);
+            Assert.Contains("https://example.org/history", md);
+
+            var json = System.Text.Encoding.UTF8.GetString(
+                LessonExporter.Export(view, ExportFormat.Json, audience).Content);
+            Assert.Contains("perspectives", json);
+            Assert.Contains("Historical interpretation two", json);
+
+            var pdf = LessonExporter.Export(view, ExportFormat.Pdf, audience);
+            Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
+        }
+    }
+
+    [Fact]
+    public void TeacherExports_IncludeReviewActions_StudentExportsKeepThemPrivate()
+    {
+        var sample = Sample();
+        sample.Flags =
+        [
+            new VerificationFlag
+            {
+                Id = "LF-1234567890",
+                Claim = "Unintroduced terminology",
+                Issue = "Quiz assesses a term not explained in the lesson.",
+                Severity = "High",
+                Category = "assessment_alignment",
+                Location = "Q1",
+                Recommendation = "Teach the term before the quiz.",
+                Evidence = "Review only considered the supplied excerpts."
+            }
+        ];
+        var stored = new StoredLesson(1, "Photosynthesis", 12, DateTime.UtcNow,
+            new LessonRequest { Topic = "Photosynthesis" }, sample);
+        var view = StoredLessonView.From(stored);
+
+        var teacherMarkdown = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Markdown, Audience.Teacher).Content);
+        var studentMarkdown = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Markdown, Audience.Student).Content);
+        var teacherJson = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Json, Audience.Teacher).Content);
+        var studentJson = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Json, Audience.Student).Content);
+
+        Assert.Contains("Teach the term before the quiz.", teacherMarkdown);
+        Assert.Contains("AI evidence summary", teacherMarkdown);
+        Assert.Contains("assessment_alignment", teacherJson);
+        Assert.Contains("LF-1234567890", teacherJson);
+        Assert.DoesNotContain("Teach the term before the quiz.", studentMarkdown);
+        Assert.DoesNotContain("assessment_alignment", studentJson);
+
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+        var pdf = LessonExporter.Export(view, ExportFormat.Pdf, Audience.Teacher);
+        Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
+    }
+
+    [Fact]
+    public void RightsEligibleSourceProvenance_IsPersistedAndExportedToTeachers()
+    {
+        var original = Sample();
+        original.SourceRecords =
+        [
+            new SourceEvidenceRecord
+            {
+                ProviderId = "usgs-earthquakes",
+                CanonicalId = "us1234",
+                Title = "USGS event observation",
+                Url = "https://earthquake.usgs.gov/earthquakes/eventpage/us1234",
+                LicenseId = "US-PD",
+                PolicyUrl = "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+                Attribution = "U.S. Geological Survey",
+                RightsScope = "Official earthquake catalog observations",
+                RightsReviewedOn = new DateOnly(2026, 11, 6),
+                RetrievedAtUtc = new DateTimeOffset(2026, 11, 6, 12, 0, 0, TimeSpan.Zero),
+                DocumentSha256 = new string('A', 64)
+            }
+        ];
+
+        var storedJson = JsonSerializer.Serialize(original, Web);
+        var restored = JsonSerializer.Deserialize<VerifiedLessonOutput>(storedJson, Web)!;
+        var entry = Assert.Single(restored.SourceRecords);
+        Assert.Equal("usgs-earthquakes", entry.ProviderId);
+        Assert.Equal("US-PD", entry.LicenseId);
+        Assert.Equal(64, entry.DocumentSha256.Length);
+
+        var stored = new StoredLesson(1, "Earthquakes", 12, DateTime.UtcNow,
+            new LessonRequest { Topic = "Earthquakes" }, restored);
+        var teacher = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Json, Audience.Teacher).Content);
+        var student = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Json, Audience.Student).Content);
+        var teacherMd = System.Text.Encoding.UTF8.GetString(LessonExporter.Export(
+            StoredLessonView.From(stored), ExportFormat.Markdown, Audience.Teacher).Content);
+
+        Assert.Contains("\"source_records\"", teacher);
+        Assert.Contains("usgs-earthquakes", teacher);
+        Assert.Contains("US-PD", teacherMd);
+        Assert.DoesNotContain("source_records", student);
     }
 
     private static StoredLessonView View()

@@ -11,6 +11,7 @@ export interface LessonRequest {
   topic: string
   audience_age: number
   audience_notes: string
+  explore_perspectives: boolean
   quiz_config: QuizConfig
 }
 
@@ -24,11 +25,33 @@ export interface GroundedFact {
   citations: CitationRef[]
 }
 
+export interface PerspectiveViewpoint {
+  name: string
+  interpretation: string
+  evidence_basis: string
+  limitations: string
+  citations: CitationRef[]
+}
+
+export type PerspectiveStatus =
+  | 'supported_disagreement'
+  | 'no_substantive_disagreement'
+  | 'insufficient_evidence'
+
+export interface PerspectiveAnalysisOutput {
+  status: PerspectiveStatus
+  perspectives: PerspectiveViewpoint[]
+  areas_of_agreement: string[]
+  evidence_limitations: string
+  discussion_questions: string[]
+}
+
 export interface ResearchOutput {
   topic_summary: string
   grounded_facts: GroundedFact[]
   queries_used: string[]
   source_inventory: CitationRef[]
+  perspectives?: PerspectiveAnalysisOutput | null
 }
 
 export interface LessonSection {
@@ -67,14 +90,37 @@ export interface QuizOutput {
 }
 
 export interface VerificationFlag {
+  // New reviews have host-assigned IDs and structured metadata. Older saved
+  // lessons retain only claim/issue/severity and must remain readable.
+  id?: string
   claim: string
   issue: string
   severity: string
+  category?: string
+  location?: string
+  recommendation?: string
+  evidence?: string
+}
+
+export interface SourceEvidenceRecord {
+  provider_id: string
+  canonical_id: string
+  title: string
+  url: string
+  license_id: string
+  policy_url: string
+  attribution: string
+  rights_scope: string
+  rights_reviewed_on: string
+  retrieved_at_utc: string
+  document_sha256: string
 }
 
 export interface VerifiedLessonOutput {
+  source_records?: SourceEvidenceRecord[]
   plan: LessonPlanOutput
   quiz: QuizOutput
+  perspectives?: PerspectiveAnalysisOutput | null
   flags: VerificationFlag[]
   citation_coverage: number
   notes: string

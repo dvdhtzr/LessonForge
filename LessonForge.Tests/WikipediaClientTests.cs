@@ -54,6 +54,9 @@ public class WikipediaClientTests
         Assert.Equal("https://en.wikipedia.org/wiki/Photosynthesis", doc.Url);
         Assert.Contains("light energy", doc.Text);
         Assert.Equal(SourceKind.WikipediaArticle, doc.Kind);
+        Assert.Equal("wikipedia-text", doc.ProviderId);
+        Assert.True(SourcePermissionGate.Evaluate(doc).Allowed);
+        Assert.Equal("CC-BY-SA-4.0", doc.Rights?.LicenseId);
     }
 
     [Fact]
