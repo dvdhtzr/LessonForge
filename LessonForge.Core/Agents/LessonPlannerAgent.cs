@@ -122,6 +122,9 @@ public static partial class LessonPlannerAgent
             if (output.Citations is not { Count: > 0 })
                 output.Citations = research.SourceInventory;
 
+            // The research arriving through the RequestPort is the educator-approved
+            // version, potentially edited. Preserve it over the pre-approval copy.
+            state.Research = research;
             state.Plan = output;
             state.CurrentStep = 3;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
