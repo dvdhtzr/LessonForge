@@ -25,7 +25,9 @@ builder.Services.AddCors(options => options.AddPolicy(CorsPolicy, policy => poli
 // Use only the repository-shipped LLM configuration, rather than depending on
 // machine-specific or stale session environment variables for model selection.
 var llmConfiguration = new ConfigurationBuilder()
-    .SetBasePath(builder.Environment.ContentRootPath)
+    // The SDK copies appsettings.json beside the executable. This path also works
+    // when started from the repository root instead of the API project directory.
+    .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
     .Build();
 var llmOptions = llmConfiguration.GetSection(LlmOptions.SectionName).Get<LlmOptions>()
