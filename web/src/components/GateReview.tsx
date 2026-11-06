@@ -138,7 +138,7 @@ export default function GateReview({ gate, onApprove, onAbort, explorePerspectiv
 
   return (
     <div className="backdrop">
-      <div className="modal review-modal" role="dialog" aria-modal="true" aria-labelledby="review-title">
+      <div className={`modal review-modal${gate.stage === 'research' ? ' review-modal--research' : ''}`} role="dialog" aria-modal="true" aria-labelledby="review-title">
         <h2 id="review-title">{gate.stage === 'research' ? 'Review the research' : 'Review the lesson plan'}</h2>
         <p className="muted">
           Review the material and supporting sources before continuing. Approve it as-is, edit the JSON,
