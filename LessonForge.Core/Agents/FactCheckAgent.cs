@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.Text;
+using System.Security.Cryptography;
 using LessonForge.Core.Dto;
 using LessonForge.Core.Rag;
 using LessonForge.Core.Workflow;
@@ -122,6 +123,30 @@ public static partial class FactCheckAgent
             // Deliberately do not trust the LLM to reconstruct or modify the approved
             // lesson, quiz, answers or citations. Only audit findings come from the LLM.
             var output = AssembleVerifiedLesson(plan, quiz, review, approvedPerspectives);
+            // Persist the retrieved documents' provenance outside model-generated
+            // DTOs. This is evidence inventory, not a declaration that every
+            // document was quoted, cited or factually authoritative.
+            output.SourceRecords = new[] { session }
+                .Concat(rag.PerspectiveSession is { } perspectiveSession
+                    ? [perspectiveSession] : [])
+                .SelectMany(s => s.Sources)
+                .GroupBy(s => s.Url, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .Select(s => new SourceEvidenceRecord
+                {
+                    ProviderId = s.ProviderId,
+                    CanonicalId = s.CanonicalId,
+                    Title = s.Title,
+                    Url = s.Url,
+                    LicenseId = s.Rights?.LicenseId ?? "",
+                    PolicyUrl = s.Rights?.PolicyUrl ?? "",
+                    Attribution = s.Rights?.Attribution ?? "",
+                    RightsScope = s.Rights?.Scope ?? "",
+                    RightsReviewedOn = s.Rights?.ReviewedOn ?? default,
+                    RetrievedAtUtc = s.RetrievedAtUtc,
+                    DocumentSha256 = Convert.ToHexString(
+                        SHA256.HashData(Encoding.UTF8.GetBytes(s.Text)))
+                }).ToList();
 
             state.CurrentStep = 5;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
