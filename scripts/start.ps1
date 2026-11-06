@@ -111,8 +111,8 @@ Start-Process -FilePath 'powershell.exe' -WorkingDirectory $root `
 Start-Process -FilePath 'powershell.exe' -WorkingDirectory $root `
     -ArgumentList "-NoExit -NoProfile -File `"$webScript`""
 
-Wait-ForService 'http://127.0.0.1:5174/' 'LessonForge API' 90
-Wait-ForService 'http://127.0.0.1:5173/' 'LessonForge frontend' 30
+Wait-ForService 'http://localhost:5174/' 'LessonForge API' 90
+Wait-ForService 'http://localhost:5173/' 'LessonForge frontend' 30
 
 Write-Host ''
 Write-Host '==> LessonForge is ready at http://localhost:5173'
