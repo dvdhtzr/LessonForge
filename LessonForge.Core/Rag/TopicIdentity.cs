@@ -28,6 +28,20 @@ public static class TopicIdentity
             word.All(character => char.IsLetter(character) || character is '-' or '\'' or '’'));
     }
 
+    /// <summary>
+    /// Probe short, unpunctuated titles even if the user types in lowercase.
+    /// Only an exact canonical match enables the named-subject lock for these.
+    /// </summary>
+    public static bool IsShortTitleCandidate(string? topic)
+    {
+        if (string.IsNullOrWhiteSpace(topic))
+            return false;
+        var words = topic.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length is >= 2 and <= 6 &&
+            words.All(word => word.Length > 0 &&
+                word.All(character => char.IsLetter(character) || character is '-' or '\'' or '’'));
+    }
+
     public static bool SameTitle(string topic, string actualTitle)
     {
         if (string.IsNullOrWhiteSpace(topic) || string.IsNullOrWhiteSpace(actualTitle))
