@@ -26,7 +26,7 @@ public static class LessonWorkflow
     /// by every executor and carries the live retrieval session.
     /// </summary>
     public static (MafWorkflow Workflow, RagContext Rag) Build(
-        ClientFactory clients, RetrievalService retrieval, bool interactive)
+        ClientFactory clients, RetrievalService retrieval, bool interactive, IProgress<string>? researchProgress = null)
     {
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
