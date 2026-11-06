@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LessonForge.Api.Export;
 using LessonForge.Api.Persistence;
+using LessonForge.Core.Agents;
 using LessonForge.Core.Dto;
 using Xunit;
 
@@ -75,6 +76,66 @@ public class DtoAndExportTests
         Assert.True(pdf.Content.Length > 500);
         Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
         Assert.EndsWith(".pdf", pdf.FileName);
+    }
+
+    [Fact]
+    public void PerspectiveAnalysis_RoundTripsAndAppearsInStudentAndTeacherExports()
+    {
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        var sample = Sample();
+        sample.Perspectives = new PerspectiveAnalysisOutput
+        {
+            Status = PerspectiveAnalysisValidator.Supported,
+            Perspectives =
+            [
+                new PerspectiveViewpoint
+                {
+                    Name = "Historical interpretation one",
+                    Interpretation = "This reading emphasizes documented changes.",
+                    EvidenceBasis = "A named historical document.",
+                    Limitations = "One account does not represent everyone.",
+                    Citations = [new CitationRef { Title = "Primary source", Url = "https://example.org/history" }]
+                },
+                new PerspectiveViewpoint
+                {
+                    Name = "Historical interpretation two",
+                    Interpretation = "This reading emphasizes a different consequence.",
+                    EvidenceBasis = "Another cited historical document.",
+                    Limitations = "The surviving evidence is partial.",
+                    Citations = [new CitationRef { Title = "Secondary source", Url = "https://example.org/history2" }]
+                }
+            ],
+            AreasOfAgreement = ["Both discuss the same event."],
+            EvidenceLimitations = "Sources vary in perspective.",
+            DiscussionQuestions = ["How do the two accounts differ?"]
+        };
+
+        var stored = new StoredLesson(42, "Photosynthesis", 12,
+            DateTime.UtcNow, new LessonRequest { Topic = "Photosynthesis", AudienceAge = 12,
+                ExplorePerspectives = true }, sample);
+        var view = StoredLessonView.From(stored);
+        Assert.Same(sample.Perspectives, view.Perspectives);
+
+        var serialized = JsonSerializer.Serialize(sample, Web);
+        var restored = JsonSerializer.Deserialize<VerifiedLessonOutput>(serialized, Web)!;
+        Assert.Equal("supported_disagreement", restored.Perspectives?.Status);
+
+        foreach (var audience in new[] { Audience.Student, Audience.Teacher })
+        {
+            var md = System.Text.Encoding.UTF8.GetString(
+                LessonExporter.Export(view, ExportFormat.Markdown, audience).Content);
+            Assert.Contains("Historical interpretation one", md);
+            Assert.Contains("https://example.org/history", md);
+
+            var json = System.Text.Encoding.UTF8.GetString(
+                LessonExporter.Export(view, ExportFormat.Json, audience).Content);
+            Assert.Contains("perspectives", json);
+            Assert.Contains("Historical interpretation two", json);
+
+            var pdf = LessonExporter.Export(view, ExportFormat.Pdf, audience);
+            Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
+        }
     }
 
     private static StoredLessonView View()
