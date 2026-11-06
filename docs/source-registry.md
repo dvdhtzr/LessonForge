@@ -77,17 +77,12 @@ uses, especially output redistribution and commercial publication.
 | USGS Earthquake Hazards GeoJSON | Official 4.5+ weekly feed | Enabled for earthquake topics only | USGS-curated structured observations; no linked event products or media |
 | Smithsonian Open Access — public AWS EDAN metadata | Anonymous official S3 JSONL shards, scoped by museum unit | Enabled for **CC0 metadata records only** | Up to eight sampled shards (not comprehensive); media rights are separate, no images/3D/audio or key-required API used |
 | Library of Congress — *A Century of Lawmaking for a New Nation* | Official JSON API | Enabled for U.S. constitutional and congressional-history topics | Only explicitly identified records in the public-domain collection; no OCR, book contents, linked assets or conflicting item rights |
-| Project Gutenberg weekly catalog CSV | Official machine-readable CSV, locally cached | Enabled for bibliographic metadata only | No full-text ebook retrieval or implicit edition copyright clearance |
+| Project Gutenberg official CSV catalog | [Weekly machine-readable CSV](https://www.gutenberg.org/ebooks/offline_catalogs.html), locally cached | Enabled for bibliographic discovery | Only catalog metadata is public domain; ebook full texts are NOT downloaded, nor presumed unrestricted |
 | Saylor University | Original course materials and links | Disabled | Original CC BY content differs from third-party sources and exam banks |
 
 References for policy review:
 - Wikimedia Foundation: https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
-- Smithsonian Open Access developer tools: https://www.si.edu/openaccess/devtools
-- Smithsonian Open Access FAQ: https://www.si.edu/openaccess/faq
-- Public Smithsonian Open Access AWS dataset: https://registry.opendata.aws/smithsonian-open-access/
-- Smithsonian public bucket metadata index: https://smithsonian-open-access.s3-us-west-2.amazonaws.com/metadata/edan/index.txt
-- Smithsonian EDAN metadata field guidance: https://edan.si.edu/openaccess/docs/
-- Project Gutenberg official offline catalog: https://www.gutenberg.org/ebooks/offline_catalogs.html
+- Smithsonian Open Access: https://www.si.edu/openaccess/faq
 - Smithsonian API: https://www.si.edu/openaccess/devtools
 - Smithsonian Terms: https://www.si.edu/termsofuse
 - USGS copyright: https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits
@@ -96,6 +91,11 @@ References for policy review:
 - Library of Congress API: https://www.loc.gov/apis/json-and-yaml
 - LoC Century of Lawmaking collection: https://www.loc.gov/collections/century-of-lawmaking/
 - LoC collection public-domain rights: https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/
+- Smithsonian Open Access developer tools: https://www.si.edu/openaccess/devtools
+- Smithsonian Open Access FAQ: https://www.si.edu/openaccess/faq
+- Public Smithsonian Open Access AWS dataset: https://registry.opendata.aws/smithsonian-open-access/
+- Smithsonian public bucket metadata index: https://smithsonian-open-access.s3-us-west-2.amazonaws.com/metadata/edan/index.txt
+- Smithsonian EDAN metadata field guidance: https://edan.si.edu/openaccess/docs/
 - Project Gutenberg automated access: https://www.gutenberg.org/policy/robot_access.html
 - Saylor original/third-party licensing: https://www.saylor.org/OpenContent
 
@@ -118,12 +118,16 @@ References for policy review:
   never OCR, underlying primary documents, images or arbitrary item links.
   Such descriptions support facts about a document's existence/metadata,
   **not historical assertions drawn from its unseen full text**.
-- **Project Gutenberg:** locally caches the *official* machine-readable
-  `pg_catalog.csv` once every seven days; bounded download (35 MB), CSV
-  quoting support, topic matching, canonical ebook record links. Only book
-  titles/authors/subject headings and Gutenberg release dates are admitted.
-  No ebook contents are read; the edition, territorial rights, and original
-  source publication dates require independent verification.
+- **Project Gutenberg:** once-weekly local download of the **official**
+  `pg_catalog.csv` machine-readable catalog, bounded to 35 MB, with
+  HTTPS effective-URL verification, a seven-day local cache, a CSV parser
+  supporting quoted commas/newlines, topic scoring and canonical ebook
+  landing-page citations. Only English-language text catalog entries are
+  considered; output text is explicitly labelled **bibliographic metadata**.
+  No ebook HTML, TXT, PDF, images or secondary mirror content is fetched.
+  A catalog entry is not evidence of what the book says or a blanket
+  copyright review. The ebook body remains excluded until independent
+  jurisdiction/edition and approved-harvesting checks.
 - **Smithsonian:** the key-required API is not used. An anonymous, official
   Open Access S3 bucket provides publicly indexed JSONL shards; this pilot
   inspects up to eight bounded hash-shard files from one unit selected by
@@ -183,8 +187,8 @@ References for policy review:
    *Congress and the Civil War*, and inspect whether any LoC catalog results
    were admitted. The public API may return no eligible matches: that must not
    break Wikipedia research or cause invented LoC citations.
-7. **Future: additional provider:** Smithsonian per-item CC0 metadata after
-   confirming API terms and rights on the exact material to ingest.
+7. **Future: expand approved sources** only after a per-item rights/access
+   review and improved evidence-to-claim alignment checks.
 
 The preceding Wikipedia/USGS implementation passed the user's local gate and
 functional smoke check. The new LoC adapter and its offline fixtures are
@@ -192,6 +196,23 @@ committed, but **its local .NET verification and live API/Ollama integration
 are not yet confirmed**. The LoC API could return zero records under the
 strict collection membership/rights filters; inspect live evidence inventory
 before treating this provider as accepted.
+
+## Project Gutenberg provider acceptance
+
+The adapter uses the [official offline catalog CSV](https://www.gutenberg.org/ebooks/offline_catalogs.html)
+and [robot access guidance](https://www.gutenberg.org/policy/robot_access.html).
+Check Windows `scripts/check.ps1` and then run a
+**Protestant Reformation** or **Pride and Prejudice** lesson with
+perspective mode off. The retrieved inventory should include
+`gutenberg-catalog` *only if* the official feed is available and matches
+the query; inspect the teacher JSON `source_records`. Verify that facts
+about the contents of the book are never inferred solely from its metadata.
+A Gutenberg outage must not break rights-eligible Wikipedia research.
+
+This provider requires no API key. The large initial catalog download may
+take time, but subsequent lessons use the local cache for seven days.
+Code and offline tests are committed; no live end-to-end verification is
+claimed here.
 
 ## Smithsonian live smoke and limitations
 

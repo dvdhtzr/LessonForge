@@ -29,13 +29,25 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
 | Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
 
-### Gutenberg and Smithsonian — additional reviewed metadata routes
+### Project Gutenberg — key-free catalog integration
 
-- **Project Gutenberg:** the official [weekly machine-readable CSV catalog](https://www.gutenberg.org/ebooks/offline_catalogs.html)
-  is downloaded at most weekly into a bounded local cache. Only bibliography
-  records, authors, subject headings and ebook release dates enter the index.
-  We **do not fetch ebook text** or infer an edition's copyright status from
-  its existence in the catalog. No scraping of public ebook pages.
+The Research Librarian can discover books and source bibliographies from the
+[official Project Gutenberg weekly CSV catalog](https://www.gutenberg.org/ebooks/offline_catalogs.html),
+using one bounded download cached in the user's local application-data directory
+for seven days. It does not scrape the public website.
+
+**Important scope:** a Gutenberg result is **bibliographic metadata** (ebook
+number, title, listed author, subjects and Project Gutenberg release date).
+It is *not* the text of the book, proof of the work's contents, a statement
+about the original publication date or a copyright determination for any
+individual edition or translation. The separate rights gate admits this
+public-domain catalog metadata, not arbitrary ebook body content. If book text
+is needed, we must first design a reviewed, mirror-compatible, item-level
+copyright route. Project Gutenberg's trademark and territorial restrictions
+may still apply to downstream publishing.
+
+### Smithsonian Open Access — CC0 catalog metadata
+
 - **Smithsonian Open Access:** the [developer tools](https://www.si.edu/openaccess/devtools)
   include a key-required API and an anonymous [AWS Open Data repository](https://registry.opendata.aws/smithsonian-open-access/).
   LessonForge samples a small set of official weekly JSON-lines metadata
@@ -46,9 +58,9 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   externally linked pages. The sample is not a comprehensive catalog search.
   No Smithsonian API key or AWS account is required.
 
-These sources add trustworthy *discovery metadata*, not direct quotations
-from books or museum objects. The established permission gate, citation URL
-validation, source hashes and teacher provenance exports apply unchanged.
+These records describe the museum's catalog metadata, not the content or
+meaning of an artifact or the rights to any associated image, audio or 3D
+asset. The existing permission and provenance checks apply unchanged.
 
 ### Source Registry (initial rollout)
 
@@ -70,9 +82,9 @@ validation, source hashes and teacher provenance exports apply unchanged.
   rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
   and JSON exports contain this inventory. Source URLs produced by agents must
   match the material actually retrieved in the run.
-- **Still excluded:** Gutenberg ebook text, Smithsonian media assets,
-  Saylor course content, and unreviewed Library of Congress collections.
-  These require separate rights/acquisition review.
+- **Still excluded:** Gutenberg ebook text, Smithsonian images and other
+  media assets, Saylor course material, and unreviewed Library of Congress
+  collections. Each needs separate source-specific rights review.
 - **Limits:** USGS provides recent earthquake examples, while LoC catalog metadata
   documents *the existence and description* of archival records—not their full
   primary-source text. Neither should be presented as direct support for broad
