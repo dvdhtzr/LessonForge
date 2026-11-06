@@ -120,6 +120,21 @@ public static class ReviewedSourceRights
         AutomatedAccessPermitted = true
     };
 
+    public static SourceRights LocCenturyOfLawmakingCatalog => new()
+    {
+        LicenseId = "US-PD",
+        PolicyUrl = "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/",
+        ReviewedOn = new DateOnly(2026, 11, 6),
+        Scope = "Library of Congress A Century of Lawmaking for a New Nation (1774–1875) official JSON API catalog records only; no images, OCR, third-party content or unreviewed LoC collections",
+        Attribution = "Law Library of Congress; original item title and canonical record URL",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
+        MayReproduceExcerpts = true,
+        MayRedistribute = true,
+        AutomatedAccessPermitted = true
+    };
+
     public static SourceRights UsgsEarthquakeEvents => new()
     {
         LicenseId = "US-PD",
