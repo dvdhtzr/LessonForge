@@ -29,11 +29,11 @@ export default function RunView() {
       if (controller.signal.aborted) return
       void generate(state.request, state.interactive, {
         onRun: (e) => { runIdRef.current = e.runId; setRunConnected(true) },
-      onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
-      onGate: (e) => setGate(e),
-      onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
-      onError: (m) => setError(m),
-      onAborted: (m) => setAborted(m),
+        onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
+        onGate: (e) => setGate(e),
+        onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
+        onError: (m) => setError(m),
+        onAborted: (m) => setAborted(m),
       }, controller.signal).catch((err: unknown) => {
         if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : 'Lesson generation could not start.')
