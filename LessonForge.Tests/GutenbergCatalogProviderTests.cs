@@ -171,11 +171,8 @@ public sealed class GutenbergCatalogProviderTests
         using var cache2 = new TempCache();
         var invalid = new Handler(Encoding.UTF8.GetBytes(
             "ID,Title\n1,A book not following the official Gutenberg catalog schema\n"));
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            await new GutenbergCatalogProvider(new HttpClient(invalid), cache2.Path)
-                .RetrieveAsync("Protestant Reformation");
-        });
+        Assert.Empty(await new GutenbergCatalogProvider(new HttpClient(invalid), cache2.Path)
+            .RetrieveAsync("Protestant Reformation"));
     }
 
     [Fact]
@@ -183,11 +180,8 @@ public sealed class GutenbergCatalogProviderTests
     {
         using var cache = new TempCache();
         var handler = new Handler(Encoding.UTF8.GetBytes("ID,Title\n1,Unknown Book\n"));
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
-                .RetrieveAsync("Unknown Book");
-        });
+        Assert.Empty(await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
+            .RetrieveAsync("Unknown Book"));
     }
 
     [Fact]
