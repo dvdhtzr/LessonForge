@@ -12,7 +12,10 @@ public enum SourceKind
     Reference,
 
     /// <summary>USGS official earthquake event observations (not third-party reports).</summary>
-    UsgsEarthquake
+    UsgsEarthquake,
+
+    /// <summary>Public-domain congressional history catalog descriptions, not primary document text.</summary>
+    LocCongressionalCatalog
 }
 
 /// <summary>A whole retrieved document before it is split into chunks.</summary>
