@@ -21,7 +21,8 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Stage | Persona | Does |
 |-------|---------|------|
 | Research | Research Librarian | Searches Wikipedia (seed + closely-linked articles) + fetches freely-available cited references, chunks + embeds them into a per-run in-memory vector index, returns grounded facts with citations |
-| *gate* | — | Educator reviews/edits/approves the research |
+| *optional* | **Perspective Analyst** | When enabled, retrieves additional sources, identifies substantiated differing interpretations, or explicitly reports no substantive disagreement / insufficient evidence |
+| *gate* | — | Educator reviews/edits/approves grounded facts **and**, when enabled, the perspective analysis |
 | Lesson Planner | Curriculum Designer | Builds an age-calibrated plan: objectives, sections, activities, vocabulary |
 | *gate* | — | Educator reviews/edits/approves the plan |
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
@@ -40,6 +41,15 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 - **Streaming + gates:** the API streams Server-Sent Events (`run` → `stage*` → `gate*` →
   `complete` → `done`). Gates map to MAF `RequestPort`s; the UI approves/edits/aborts. Active runs
   live in memory (single-user v1).
+- **Evidence-aware optional analysis:** the `explore_perspectives` request toggle inserts a fifth
+  MAF executor between Research and educator approval. It gathers a bounded second collection of
+  Wikipedia and cited-reference sources, reports 2–3 credible interpretations *only when supported*,
+  and otherwise returns an explicit no-disagreement or insufficient-evidence result. Citations must
+  match documents actually retrieved; unsupported or fabricated source URLs are rejected. The
+  educator approves or edits the analysis within the **existing research gate**. Approved content
+  informs the plan and quiz, is reviewed for misleading representation by the Accuracy Editor,
+  and is retained in the saved lesson and student/teacher exports. This is not a requirement
+  to present weak claims as equal to well-supported evidence.
 
 ## Projects
 
@@ -162,6 +172,44 @@ This avoids depending on how a model exposes its internal reasoning or final
 answer. The committed Gemma 4 configuration has already reached the research
 approval gate in a local smoke test.
 No generated output is silently replaced by a fabricated lesson or quiz.
+
+### Optional Perspective Analyst
+
+On the **Create a new lesson** page, enable **Explore differing perspectives** to run a
+specialized fifth agent. This is useful for historical interpretation, ethical and
+philosophical disagreement, comparative religious history, and other subjects where
+credible evidence supports more than one meaningful interpretation. It is *not*
+a request to manufacture a controversy.
+
+The agent returns a typed `PerspectiveAnalysisOutput` including:
+
+- `status`: `supported_disagreement`, `no_substantive_disagreement` or `insufficient_evidence`
+- A small list of sourced perspectives, each with its evidence and limitations (only for
+  supported disagreement)
+- Areas of agreement, evidence limitations, and age-appropriate discussion questions
+
+The original Research Librarian continues producing the same compact
+`ResearchDraftOutput` shape; adding this optional feature does not make the factual
+agent generate or invent alternative viewpoints. The workflow appends the vetted
+analysis to its research envelope after the dedicated agent runs.
+
+The UI presents the analysis and real source links during the existing **research
+approval** gate, and it remains visible in completed lessons and Markdown, JSON and
+PDF exports. When off, LessonForge follows the original four-agent MAF graph.
+
+**Teaching and source limitations:** This is an evidence-gathering aid, not a neutral
+arbiter that can definitively establish scholarly consensus. Wikipedia and reachable
+references do not guarantee representative coverage of academic scholarship or primary
+sources. A limited source collection may require a finding of insufficient evidence.
+The educator should inspect the cited sources, decide which perspectives deserve
+classroom attention, and retain final responsibility for framing and age suitability.
+
+**Manual acceptance:** Test the French Revolution (age 12) with the option on;
+review and approve credible sourced interpretations and check that the finished
+lesson and quiz use them. Repeat with photosynthesis and confirm the analyst is
+allowed to report **no substantive disagreement** rather than fabricate opposing
+scientific claims. Run each topic once with the toggle off to confirm the baseline
+path is unchanged.
 
 ### Local inference timeout, output budget and research progress
 
