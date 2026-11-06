@@ -75,7 +75,11 @@ public sealed class WikipediaClient(HttpClient http)
             Title = resolvedTitle,
             Url = canonical ?? $"https://en.wikipedia.org/wiki/{Uri.EscapeDataString(resolvedTitle.Replace(' ', '_'))}",
             Text = extract,
-            Kind = SourceKind.WikipediaArticle
+            Kind = SourceKind.WikipediaArticle,
+            ProviderId = "wikipedia-text",
+            CanonicalId = resolvedTitle,
+            RetrievedAtUtc = DateTimeOffset.UtcNow,
+            Rights = ReviewedSourceRights.WikipediaArticleText
         };
     }
 
