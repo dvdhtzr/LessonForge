@@ -138,6 +138,49 @@ public class DtoAndExportTests
         }
     }
 
+    [Fact]
+    public void TeacherExports_IncludeReviewActions_StudentExportsKeepThemPrivate()
+    {
+        var sample = Sample();
+        sample.Flags =
+        [
+            new VerificationFlag
+            {
+                Id = "LF-1234567890",
+                Claim = "Unintroduced terminology",
+                Issue = "Quiz assesses a term not explained in the lesson.",
+                Severity = "High",
+                Category = "assessment_alignment",
+                Location = "Q1",
+                Recommendation = "Teach the term before the quiz.",
+                Evidence = "Review only considered the supplied excerpts."
+            }
+        ];
+        var stored = new StoredLesson(1, "Photosynthesis", 12, DateTime.UtcNow,
+            new LessonRequest { Topic = "Photosynthesis" }, sample);
+        var view = StoredLessonView.From(stored);
+
+        var teacherMarkdown = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Markdown, Audience.Teacher).Content);
+        var studentMarkdown = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Markdown, Audience.Student).Content);
+        var teacherJson = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Json, Audience.Teacher).Content);
+        var studentJson = System.Text.Encoding.UTF8.GetString(
+            LessonExporter.Export(view, ExportFormat.Json, Audience.Student).Content);
+
+        Assert.Contains("Teach the term before the quiz.", teacherMarkdown);
+        Assert.Contains("AI evidence summary", teacherMarkdown);
+        Assert.Contains("assessment_alignment", teacherJson);
+        Assert.Contains("LF-1234567890", teacherJson);
+        Assert.DoesNotContain("Teach the term before the quiz.", studentMarkdown);
+        Assert.DoesNotContain("assessment_alignment", studentJson);
+
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+        var pdf = LessonExporter.Export(view, ExportFormat.Pdf, Audience.Teacher);
+        Assert.Equal<byte[]>("%PDF"u8.ToArray(), pdf.Content[..4]);
+    }
+
     private static StoredLessonView View()
     {
         var sample = Sample();
