@@ -46,6 +46,12 @@ export default function LessonView() {
           : <QuizRenderer quiz={result.quiz} mode={audience} />}
       </div>
 
+      {result.perspectives && (
+        <div className="card">
+          <PerspectivePanel analysis={result.perspectives} />
+        </div>
+      )}
+
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Accuracy review</h3>
         <p>
