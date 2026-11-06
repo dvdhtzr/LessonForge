@@ -100,11 +100,18 @@ Dependency restore/install may still require internet access.
 |--------|------------|
 | `scripts/build.ps1` | Build API and xUnit projects in Release mode |
 | `scripts/test.ps1` | Run all xUnit tests |
-| `scripts/web.ps1` | Install locked frontend dependencies, lint, type-check, build |
+| `scripts/web.ps1` | Reuse unchanged dependencies; otherwise `npm ci`; lint, type-check, build |
 | `scripts/check.ps1` | Run the complete local gate; fail on any nonzero .NET/npm exit |
 
 The `*.sh` equivalents run the same checks. A successful check prints
 `==> All local checks passed.` and must not do so if a command fails.
+
+**Windows note:** `npm ci` removes/recreates `node_modules`, which can fail with
+`EPERM` when the Vite dev server has a native Rolldown binary loaded. Stop the Vite server
+before the **first** run (or after a lockfile/Node version change), then rerun the checks.
+After a successful installation, the verification script records the lockfile hash and Node
+version inside `node_modules` and skips repeat installs until one changes.
+This makes normal edit/test iterations safe while the dev server is running.
 
 **Live application smoke test (separate from the automated gate):** Start Ollama, the API,
 and the Vite frontend; generate a lesson, watch the research and stage events, respond to
