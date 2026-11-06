@@ -105,31 +105,59 @@ public static class StructuredAgentOutput
         }
 
         var missing = MissingRequiredContent(value);
+
+        // Numeric DTO defaults hide an omitted correct_index (zero is also a valid
+        // value), so inspect raw property presence for each question as well.
+        if (value is QuizOutput quizOutput && quizOutput.Questions is { Count: > 0 })
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("questions", out var questionItems) &&
+                questionItems.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                foreach (var item in questionItems.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object ||
+                        !item.TryGetProperty("correct_index", out _))
+                        missing.Add($"questions[{index}].correct_index");
+                    index++;
+                }
+            }
+        }
+
         if (missing.Count > 0)
         {
             // With System.Text.Json's default-initialized DTO properties, both a missing
             // array and a supplied empty array look identical after deserialization.
             // Distinguish them without exposing generated text or source material.
-            if (value is ResearchOutput && missing.Contains("grounded_facts"))
+            var requiredArray = value switch
+            {
+                ResearchOutput when missing.Contains("grounded_facts") => "grounded_facts",
+                QuizOutput when missing.Contains("questions") => "questions",
+                _ => null
+            };
+            if (requiredArray is not null)
             {
                 using var json = JsonDocument.Parse(text);
                 var root = json.RootElement;
                 string detail;
                 if (root.ValueKind != JsonValueKind.Object ||
-                    !root.TryGetProperty("grounded_facts", out var facts))
+                    !root.TryGetProperty(requiredArray, out var array))
                 {
                     detail = "property absent";
                 }
-                else if (facts.ValueKind == JsonValueKind.Array)
+                else if (array.ValueKind == JsonValueKind.Array)
                 {
-                    detail = facts.GetArrayLength() == 0 ? "empty array" : "invalid entries";
+                    detail = array.GetArrayLength() == 0 ? "empty array" : "invalid entries";
                 }
                 else
                 {
                     detail = "not an array";
                 }
 
-                missing[missing.IndexOf("grounded_facts")] = $"grounded_facts ({detail})";
+                missing[missing.IndexOf(requiredArray)] = $"{requiredArray} ({detail})";
             }
 
             throw new InvalidOperationException(
@@ -187,7 +215,38 @@ public static class StructuredAgentOutput
                 break;
 
             case QuizOutput quiz:
-                if (quiz.Questions is not { Count: > 0 }) missing.Add("questions");
+                if (quiz.Questions is not { Count: > 0 })
+                {
+                    missing.Add("questions");
+                }
+                else
+                {
+                    for (var index = 0; index < quiz.Questions.Count; index++)
+                    {
+                        var question = quiz.Questions[index];
+                        if (question is null)
+                        {
+                            missing.Add($"questions[{index}]");
+                            continue;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(question.Stem))
+                            missing.Add($"questions[{index}].stem");
+                        if (question.Options is not { Count: >= 2 } ||
+                            question.Options.Any(string.IsNullOrWhiteSpace))
+                            missing.Add($"questions[{index}].options");
+                        if (question.Options is { Count: > 0 } &&
+                            (question.CorrectIndex < 0 || question.CorrectIndex >= question.Options.Count))
+                            missing.Add($"questions[{index}].correct_index");
+                        if (string.IsNullOrWhiteSpace(question.Explanation))
+                            missing.Add($"questions[{index}].explanation");
+                        if (question.Citations is not { Count: > 0 } ||
+                            question.Citations.Any(c => c is null ||
+                                string.IsNullOrWhiteSpace(c.Title) ||
+                                string.IsNullOrWhiteSpace(c.Url)))
+                            missing.Add($"questions[{index}].citations");
+                    }
+                }
                 break;
 
             case VerifiedLessonOutput verified:
