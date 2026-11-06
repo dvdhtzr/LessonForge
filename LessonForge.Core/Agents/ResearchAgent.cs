@@ -66,6 +66,7 @@ public static partial class ResearchAgent
                 $"{request.Topic} definition and importance",
                 $"{request.Topic} examples and process"
             };
+            progress?.Report("Searching the indexed sources for grounded facts…");
             var evidence = await RagPrompt.GatherEvidenceAsync(session, queries, ct: cancellationToken);
 
             var prompt = $"""
