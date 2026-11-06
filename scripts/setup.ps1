@@ -16,9 +16,11 @@ if ($LASTEXITCODE -ne 0 -or -not ($sdks | Where-Object { $_ -match '^10\.' })) {
 
 $nodeVersion = (& node --version).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not read Node.js version.' }
-$nodeMajor = [int]($nodeVersion.TrimStart('v').Split('.')[0])
-if ($nodeMajor -lt 22) {
-    throw "Node.js 22 or newer is required (detected $nodeVersion)."
+$nodeParts = $nodeVersion.TrimStart('v').Split('.')
+$nodeMajor = [int]$nodeParts[0]
+$nodeMinor = [int]$nodeParts[1]
+if ($nodeMajor -lt 22 -or ($nodeMajor -eq 22 -and $nodeMinor -lt 12)) {
+    throw "Node.js 22.12 or newer is required (detected $nodeVersion)."
 }
 
 & (Join-Path $PSScriptRoot 'ollama-prerequisites.ps1') -InstallModels
