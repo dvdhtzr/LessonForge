@@ -106,6 +106,9 @@ public static partial class ResearchAgent
             var draft = await StructuredAgentOutput.RunAsync<ResearchDraftOutput>(
                 agent, prompt, "Research", cancellationToken);
             var output = draft.ToResearchOutput();
+            foreach (var fact in output.GroundedFacts)
+                SourceCitationValidator.RequireRetrieved(
+                    fact.Citations, session.Citations, "Research fact");
             progress?.Report(request.ExplorePerspectives
                 ? "Research report generated; passing evidence to Perspective Analyst."
                 : "Research report generated; preparing educator review.");
