@@ -33,9 +33,11 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   discarded. Only the finished lesson/quiz is persisted (SQLite). The index is a small hand-rolled
   cosine-similarity store over the standard `IEmbeddingGenerator` abstraction, so it needs no vector
   DB and is trivially testable.
-- **Models (local Ollama, configurable):** `qwen3.8:27b` (reasoning), `qwen3.5:9b` (fast sub-tasks),
-  `nomic-embed-text:v1.5` (768-dim embeddings). Set under `LessonForge:Llm` in
-  `LessonForge.Api/appsettings.json` or via `LessonForge__Llm__*` env vars.
+- **Models (local Ollama, configurable):** `qwen3.8:27b` (primary), `qwen3.5:9b` (optional
+  faster model), `nomic-embed-text:v1.5` (768-dim embeddings). Set under
+  `LessonForge:Llm` in `LessonForge.Api/appsettings.json` or via `LessonForge__Llm__*`
+  environment variables. The current workflow uses the **primary model** for all four
+  agents; the fast-model setting is available but is not yet assigned to a workflow stage.
 - **Streaming + gates:** the API streams Server-Sent Events (`run` → `stage*` → `gate*` →
   `complete` → `done`). Gates map to MAF `RequestPort`s; the UI approves/edits/aborts. Active runs
   live in memory (single-user v1).
@@ -76,6 +78,29 @@ npm run dev
 ```
 
 Open http://localhost:5173, enter a topic and age, and generate.
+
+### Local inference timeout and research progress
+
+The OpenAI-compatible .NET client defaults to a 100-second network timeout. A local
+27-billion-parameter model may take longer to respond, especially when starting cold or
+running partially from CPU/system memory. LessonForge configures
+`LessonForge:Llm:NetworkTimeoutSeconds` (default **600**) and
+`LessonForge:Llm:MaxRetries` (default **0**) so a slow response isn't automatically
+generated repeatedly. You can override them without changing source:
+
+```powershell
+$env:LessonForge__Llm__NetworkTimeoutSeconds = '900'
+$env:LessonForge__Llm__MaxRetries = '0'
+# Optional faster smoke test; does not change committed application defaults:
+$env:LessonForge__Llm__ChatModel = 'qwen3.5:9b'
+```
+
+Set variables in the API's PowerShell session **before** starting `dotnet run`.
+The Research Librarian emits progress for source retrieval, embedding, evidence search,
+and local report generation. Progress appears on the run page and in API logs.
+A failed stage is reported with its failure details rather than a generic empty result.
+A longer timeout is not a guarantee of successful inference: check Ollama availability
+and model memory usage if generation still fails.
 
 ## Validating locally (required before merging)
 
