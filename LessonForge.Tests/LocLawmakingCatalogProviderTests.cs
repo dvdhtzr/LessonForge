@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using LessonForge.Core.Rag;
 using Xunit;
 
@@ -95,6 +96,27 @@ public sealed class LocLawmakingCatalogProviderTests
         Assert.Equal("/collections/century-of-lawmaking/", handler.Requested!.AbsolutePath);
         Assert.Contains("q=United%20States%20constitution", handler.Requested.Query);
         Assert.Contains("fo=json", handler.Requested.Query);
+    }
+
+    [Fact]
+    public async Task BareResultsArrayIsAcceptedWhenCollectionMembershipIsVerified()
+    {
+        using var fixture = JsonDocument.Parse(Fixture);
+        var array = fixture.RootElement.GetProperty("results").GetRawText();
+        var records = await new LocLawmakingCatalogProvider(new HttpClient(new Handler(array)))
+            .RetrieveAsync("United States Constitution");
+        Assert.Equal(2, records.Count);
+    }
+
+    [Fact]
+    public async Task MalformedItemRightsFailClosed()
+    {
+        var modified = Fixture.Replace(
+            "\"access_restricted\":false",
+            "\"rights_advisory\":[{\"malformed\":true}]");
+        var records = await new LocLawmakingCatalogProvider(new HttpClient(new Handler(modified)))
+            .RetrieveAsync("United States Constitution");
+        Assert.DoesNotContain(records, item => item.CanonicalId == "12345678");
     }
 
     [Fact]
