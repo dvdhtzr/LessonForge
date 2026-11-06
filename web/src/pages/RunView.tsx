@@ -101,7 +101,8 @@ export default function RunView() {
         <GateReview
           key={gate.requestId}
           gate={gate}
-          onApprove={(edited) => resolveGate(true, edited)}
+          explorePerspectives={state.request.explore_perspectives}
+          onApprove={(edited) => resolveGate(true, edited)
           onAbort={() => resolveGate(false)}
         />
       )}
