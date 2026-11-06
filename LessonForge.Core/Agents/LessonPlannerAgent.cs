@@ -89,23 +89,23 @@ public static partial class LessonPlannerAgent
                 title, grade_band, overview, learning_objectives, sections, vocabulary, materials, citations.
 
                 REQUIRED STRUCTURE (the example strings below illustrate field types, not lesson content):
-                {
+                {{
                   "title": "Lesson title",
                   "grade_band": "Age-appropriate grade band",
                   "overview": "Two sentences introducing the topic.",
                   "learning_objectives": ["Students will be able to explain ..."],
                   "sections": [
-                    {
+                    {{
                       "title": "Section heading",
                       "body": "Student-facing explanatory text grounded in the approved facts.",
                       "activities": ["Specific classroom activity"],
                       "duration_minutes": 15
-                    }
+                    }}
                   ],
-                  "vocabulary": [{"term": "Term", "definition": "Age-appropriate definition"}],
+                  "vocabulary": [{{"term": "Term", "definition": "Age-appropriate definition"}}],
                   "materials": ["Classroom material"],
-                  "citations": [{"title": "Source title", "url": "URL copied from the approved facts"}]
-                }
+                  "citations": [{{"title": "Source title", "url": "URL copied from the approved facts"}}]
+                }}
 
                 Write 3-4 complete sections with substantive bodies. Use only the approved research
                 above and actual URLs from its supporting sources. Never copy the example values.
