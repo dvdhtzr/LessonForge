@@ -101,8 +101,57 @@ public sealed class RetrievalService(
         string topic, bool requireEvidence, IProgress<string>? progress,
         CancellationToken ct)
     {
-        progress?.Report($"Searching Wikipedia for \"{topic}\"…");
-        var seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+        var namedSubject = TopicIdentity.IsExplicitNamedSubject(topic);
+        SourceDocument? exactArticle = null;
+        IReadOnlyList<string> seedTitles;
+
+        if (namedSubject)
+        {
+            // Never allow a fuzzy title/surname hit to become the subject of a
+            // named-person or other explicitly named-entity lesson.
+            progress?.Report($"Looking up the exact Wikipedia subject \"{topic}\"…");
+            var candidate = await wikipedia.GetArticleAsync(topic, ct);
+            if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
+                exactArticle = candidate;
+
+            // An API title query can fail while the ordinary search still knows
+            // the exact spelling. Fall back only to EXACT matched titles, never
+            // to a different person that happens to rank highly.
+            if (exactArticle is null)
+            {
+                var titles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles + 4, ct);
+                foreach (var title in titles.Where(title => TopicIdentity.SameTitle(topic, title)))
+                {
+                    candidate = await wikipedia.GetArticleAsync(title, ct);
+                    if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
+                    {
+                        exactArticle = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (exactArticle is null)
+            {
+                progress?.Report($"No exact Wikipedia article found for named subject \"{topic}\"; refusing similar-name substitutions.");
+                if (requireEvidence)
+                    throw new InvalidOperationException(
+                        "No exact Wikipedia article could be verified for the requested named subject. " +
+                        "LessonForge refused to substitute a similarly named person or topic. " +
+                        "Try a more specific or alternative subject name.");
+                return new RetrievalSession(new InMemoryVectorIndex(embeddings), []);
+            }
+
+            // For explicit named subjects, a single exact verified article is
+            // safer than expanding to a different person with a similar name.
+            progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
+            seedTitles = [exactArticle.Title];
+        }
+        else
+        {
+            progress?.Report($"Searching Wikipedia for \"{topic}\"…");
+            seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+        }
 
         var documents = new List<SourceDocument>();
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -112,7 +161,7 @@ public sealed class RetrievalService(
         for (var i = 0; i < seedTitles.Count; i++)
         {
             var title = seedTitles[i];
-            var article = await wikipedia.GetArticleAsync(title, ct);
+            var article = namedSubject ? exactArticle : await wikipedia.GetArticleAsync(title, ct);
             if (article is not null && seenUrls.Add(article.Url))
             {
                 documents.Add(article);
@@ -120,7 +169,7 @@ public sealed class RetrievalService(
             }
 
             // Only expand linked articles from the primary (first) seed, to keep runs bounded.
-            if (i == 0 && _options.MaxLinkedArticles > 0)
+            if (!namedSubject && i == 0 && _options.MaxLinkedArticles > 0)
             {
                 var linked = await wikipedia.GetLinkedTitlesAsync(title, _options.MaxLinkedArticles * 2, ct);
                 foreach (var linkedTitle in linked.Take(_options.MaxLinkedArticles))
@@ -136,8 +185,11 @@ public sealed class RetrievalService(
 
             // Wikipedia's external links are discovery metadata, NOT automatic
             // consent to retrieve or ingest another publisher's full content.
-            var external = await wikipedia.GetExternalLinksAsync(title, 40, ct);
-            unreviewedReferenceCount += external.Count;
+            if (!namedSubject)
+            {
+                var external = await wikipedia.GetExternalLinksAsync(title, 40, ct);
+                unreviewedReferenceCount += external.Count;
+            }
         }
 
         if (unreviewedReferenceCount > 0)
