@@ -25,6 +25,7 @@ export const api = {
 export interface GenerateHandlers {
   onRun?: (e: RunEvent) => void
   onStage?: (e: StageEvent) => void
+  onProgress?: (e: { stage: string; message: string }) => void
   onGate?: (e: GateEvent) => void
   onComplete?: (e: CompleteEvent) => void
   onError?: (message: string) => void
