@@ -73,7 +73,15 @@ public static class SourcePermissionGate
              !uri.AbsolutePath.StartsWith("/earthquakes/eventpage/", StringComparison.Ordinal) ||
              rights.LicenseId != "US-PD"))
             return Deny("USGS decision applies only to structured earthquake event data.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes"))
+        if (document.ProviderId == "loc-century-of-lawmaking" &&
+            (document.Kind != SourceKind.LocCongressionalCatalog ||
+             !uri.Host.Equals("www.loc.gov", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/item/", StringComparison.Ordinal) ||
+             rights.LicenseId != "US-PD" ||
+             rights.PolicyUrl !=
+                "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/"))
+            return Deny("LoC decision is restricted to approved public-domain congressional catalog records.");
+        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
