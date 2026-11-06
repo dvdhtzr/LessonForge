@@ -9,6 +9,15 @@ if (-not (Test-Path (Join-Path $root 'web/node_modules'))) {
     throw 'Frontend dependencies are missing. Run .\scripts\setup.ps1 first.'
 }
 
+# Refuse to start a second copy of either server; stale processes caused
+# confusion in earlier integration tests.
+foreach ($port in @(5173, 5174)) {
+    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if ($listener) {
+        throw "Port $port is already in use. Stop the existing LessonForge server before running start.ps1."
+    }
+}
+
 $apiScript = Join-Path $PSScriptRoot 'run-api.ps1'
 $webScript = Join-Path $PSScriptRoot 'run-web.ps1'
 
