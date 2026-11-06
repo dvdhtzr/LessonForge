@@ -37,7 +37,7 @@ public static partial class ResearchAgent
           the supplied supporting SOURCE excerpts. Never use a singular "citation" field.
         - queries_used: an empty array (the application supplies its actual queries).
         - source_inventory: an empty array (the application supplies its verified source inventory).
-        Keep topic_summary to 1-2 sentences. Minimize verbosity; complete the entire JSON
+        Keep topic_summary to exactly one sentence. Minimize verbosity; complete the entire JSON
         object before stopping.
 
         Be factual and precise. Prefer foundational, widely-agreed facts over trivia. You trust
