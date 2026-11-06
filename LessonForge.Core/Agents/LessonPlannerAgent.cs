@@ -93,7 +93,7 @@ public static partial class LessonPlannerAgent
 
             // Two-dollar interpolation lets ordinary JSON braces remain literal while
             // {{expression}} still inserts the educator-approved values.
-            var prompt = $"""
+            var prompt = $$"""
                 Design a lesson plan for this audience.
 
                 TOPIC: {{request.Topic}}
