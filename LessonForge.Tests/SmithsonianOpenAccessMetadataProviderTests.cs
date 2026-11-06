@@ -66,7 +66,7 @@ public sealed class SmithsonianOpenAccessMetadataProviderTests
         Assert.Equal("https://collections.si.edu/search/detail/edanmdm:nmah_12345", record.Url);
         Assert.True(SourcePermissionGate.Evaluate(record).Allowed);
         Assert.Contains("American Revolution", record.Text);
-        Assert.Contains("NOT", record.Text);
+        Assert.Contains("CC0 CATALOG METADATA ONLY", record.Text);
         Assert.DoesNotContain("restricted.example", record.Text);
         Assert.Equal(2, handler.Calls);
         Assert.All(handler.Requests, req =>
