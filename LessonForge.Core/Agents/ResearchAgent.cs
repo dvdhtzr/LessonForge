@@ -81,8 +81,10 @@ public static partial class ResearchAgent
                 above, and queries_used. Output structured JSON.
                 """;
 
+            progress?.Report("Asking the local model to assemble the research report…");
             var response = await agent.RunAsync<ResearchOutput>(prompt, cancellationToken: cancellationToken);
             var output = response.Result;
+            progress?.Report("Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
             output.SourceInventory = RagPrompt.InventoryCitations(session);
