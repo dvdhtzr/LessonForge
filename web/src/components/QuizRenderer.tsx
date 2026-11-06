@@ -4,7 +4,7 @@ export default function QuizRenderer({ quiz, mode }: { quiz: QuizOutput; mode: '
   return (
     <div>
       {quiz.questions?.map((q, i) => (
-        <div className="quiz-q" key={i}>
+        <div className="quiz-q" key={i} id={`lesson-q${i + 1}`}>
           <strong>{i + 1}. {q.stem}</strong>
           <ol type="A">
             {q.options.map((opt, o) => (
