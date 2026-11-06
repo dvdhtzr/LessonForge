@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import PlanRenderer from '../components/PlanRenderer'
 import QuizRenderer from '../components/QuizRenderer'
+import PerspectivePanel from '../components/PerspectivePanel'
 
 type Tab = 'plan' | 'quiz'
 
