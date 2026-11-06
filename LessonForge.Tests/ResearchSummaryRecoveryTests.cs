@@ -203,6 +203,68 @@ public sealed class ResearchSummaryRecoveryTests
     }
 
     [Fact]
+    public async Task ValidJsonAboutWrongPerson_TriggersSubjectIdentityRepair()
+    {
+        var draft = Draft("The provided sources discuss the acting career of Jesús Carroza.");
+        var facts = draft.GroundedFacts;
+        var citation = facts[0].Citations[0];
+        var calls = 0;
+        var messages = new ProgressCollector();
+
+        var repaired = await ResearchSummaryRecovery.EnsureCompleteAsync(
+            draft,
+            _ =>
+            {
+                calls++;
+                return Task.FromResult(
+                    "Carmen Carrozza was an Italian-American concert accordionist.");
+            },
+            messages,
+            expectedNamedSubject: "Carmen Carrozza");
+
+        Assert.Equal(1, calls);
+        Assert.Equal("Carmen Carrozza was an Italian-American concert accordionist.",
+            repaired.TopicSummary);
+        Assert.Same(facts, repaired.GroundedFacts);
+        Assert.Same(citation, repaired.GroundedFacts[0].Citations[0]);
+        Assert.Contains(messages.Messages, m =>
+            m.Contains("does not identify the requested subject", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ValidJsonStillAboutWrongPerson_FailsClosedAfterSingleRepair()
+    {
+        var draft = Draft("Jesús Carroza is a Spanish actor.");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await ResearchSummaryRecovery.EnsureCompleteAsync(
+                draft,
+                _ => Task.FromResult("Jesús Carroza won the Goya Award."),
+                expectedNamedSubject: "Carmen Carrozza");
+        });
+        Assert.Contains("similarly named person", error.Message);
+        Assert.Equal("Jesús Carroza is a Spanish actor.", draft.TopicSummary);
+        Assert.DoesNotContain("Jesús", error.Message);
+    }
+
+    [Fact]
+    public async Task CorrectNamedSubjectSummary_DoesNotCallRepair()
+    {
+        var draft = Draft("Carmen Carrozza was a concert accordionist.");
+        var calls = 0;
+        var actual = await ResearchSummaryRecovery.EnsureCompleteAsync(
+            draft,
+            _ =>
+            {
+                calls++;
+                return Task.FromResult("Not needed.");
+            },
+            expectedNamedSubject: "Carmen Carrozza");
+        Assert.Equal(0, calls);
+        Assert.Same(draft, actual);
+    }
+
+    [Fact]
     public void RepairSchemaOnlyContainsTopicSummary()
     {
         var format = ChatResponseFormat.ForJsonSchema<ResearchSummaryRepairOutput>(
