@@ -16,23 +16,29 @@ export default function RunView() {
   const [gate, setGate] = useState<GateEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aborted, setAborted] = useState<string | null>(null)
+  const [runConnected, setRunConnected] = useState(false)
   const runIdRef = useRef<string | null>(null)
-  const started = useRef(false)
 
   useEffect(() => {
-    if (!state?.request || started.current) return
-    started.current = true
+    if (!state?.request) return
     const controller = new AbortController()
 
-    generate(state.request, state.interactive, {
-      onRun: (e) => { runIdRef.current = e.runId },
-      onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
-      onGate: (e) => setGate(e),
-      onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
-      onError: (m) => setError(m),
-      onAborted: (m) => setAborted(m),
-    }, controller.signal).catch((err) => {
-      if (!controller.signal.aborted) setError(err.message)
+    // StrictMode replays effects in development. Defer the POST until its first
+    // cleanup has had a chance to abort, so we start exactly one workflow.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return
+      void generate(state.request, state.interactive, {
+        onRun: (e) => { runIdRef.current = e.runId; setRunConnected(true) },
+        onStage: (e) => setStatuses((prev) => ({ ...prev, [e.name]: e.status })),
+        onGate: (e) => setGate(e),
+        onComplete: (e) => navigate(`/lessons/${e.id}`, { state: { lessonId: e.id } }),
+        onError: (m) => setError(m),
+        onAborted: (m) => setAborted(m),
+      }, controller.signal).catch((err: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : 'Lesson generation could not start.')
+        }
+      })
     })
 
     return () => controller.abort()
@@ -68,6 +74,11 @@ export default function RunView() {
         takes a few minutes. You can keep this tab open and watch the progress below.
       </p>
 
+      {Object.keys(statuses).length === 0 && !error && !aborted && (
+        <p className="muted" role="status">
+          {runConnected ? 'Connected — preparing the research stage…' : 'Connecting to the lesson service…'}
+        </p>
+      )}
       <StageTimeline statuses={statuses} />
 
       {error && <p className="error" style={{ marginTop: 16 }}>Error: {error}</p>}
