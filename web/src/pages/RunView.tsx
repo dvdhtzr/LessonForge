@@ -27,12 +27,13 @@ export default function RunView() {
   // Keep only actual events delivered over SSE. Never synthesize a progress
   // percentage or pretend agents are exchanging unseen messages.
   const addActivity = useCallback((entry: Omit<ActivityEntry, 'id'>) => {
+    const id = ++eventSeq.current
     setActivity((previous) => {
       const last = previous[previous.length - 1]
       if (last && last.kind === entry.kind && last.stage === entry.stage && last.message === entry.message) {
         return previous
       }
-      return [...previous, { ...entry, id: ++eventSeq.current }].slice(-8)
+      return [...previous, { ...entry, id }].slice(-8)
     })
   }, [])
 
