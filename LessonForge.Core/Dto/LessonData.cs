@@ -96,6 +96,18 @@ public sealed class ResearchDraftOutput
     };
 }
 
+/// <summary>
+/// Narrow second-pass schema for a truncated research topic_summary.
+/// Never ask the model to regenerate facts or source references in this pass.
+/// </summary>
+[Description("One complete source-grounded replacement topic summary, without revised facts or citations.")]
+public sealed class ResearchSummaryRepairOutput
+{
+    [JsonPropertyName("topic_summary")]
+    [Description("One short, complete, grammatically finished sentence grounded exclusively in the supplied evidence; end in a period.")]
+    public string TopicSummary { get; set; } = "";
+}
+
 [Description("The Research Librarian's grounded findings.")]
 public sealed class ResearchOutput
 {
