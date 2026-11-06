@@ -110,6 +110,7 @@ public sealed class LessonRunService(
                     case ExecutorFailedEvent failed:
                         logger.LogError("Lesson run {RunId}: stage {Stage} failed: {Message}",
                             session.RunId, failed.ExecutorId, failed.Data?.Message);
+                        failureMessage = $"{failed.ExecutorId} failed: {failed.Data?.Message ?? "No failure details were provided."}";
                         await WriteAsync(session, "stage", new { name = failed.ExecutorId, status = "failed", message = failed.Data?.Message });
                         break;
 
