@@ -18,7 +18,10 @@ public enum SourceKind
     LocCongressionalCatalog,
 
     /// <summary>Public-domain Project Gutenberg catalog metadata, never ebook text.</summary>
-    GutenbergCatalog
+    GutenbergCatalog,
+
+    /// <summary>CC0 Smithsonian EDAN catalog metadata only, not collection media.</summary>
+    SmithsonianMetadata
 }
 
 /// <summary>A whole retrieved document before it is split into chunks.</summary>

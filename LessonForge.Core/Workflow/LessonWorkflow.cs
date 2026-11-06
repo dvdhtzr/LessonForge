@@ -114,7 +114,8 @@ public static class LessonWorkflow
         [
             new UsgsEarthquakeProvider(CreateHttpClient()),
             new LocLawmakingCatalogProvider(CreateHttpClient()),
-            new GutenbergCatalogProvider(CreateHttpClient())
+            new GutenbergCatalogProvider(CreateHttpClient()),
+            new SmithsonianOpenAccessMetadataProvider(CreateHttpClient())
         ]);
         return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
     }

@@ -92,7 +92,16 @@ public static class SourcePermissionGate
              rights.LicenseId != "PG-CATALOG-PD" ||
              rights.PolicyUrl != "https://www.gutenberg.org/policy/robot_access.html"))
             return Deny("Gutenberg rights apply only to official catalog metadata, not ebook text.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog"))
+        if (document.ProviderId == "smithsonian-openaccess-metadata" &&
+            (document.Kind != SourceKind.SmithsonianMetadata ||
+             !uri.Host.Equals("collections.si.edu", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/search/detail/edanmdm:", StringComparison.Ordinal) ||
+             uri.AbsolutePath["/search/detail/".Length..] != document.CanonicalId ||
+             uri.Query.Length > 0 || uri.Fragment.Length > 0 ||
+             rights.LicenseId != "CC0-1.0" ||
+             rights.PolicyUrl != "https://www.si.edu/openaccess/faq"))
+            return Deny("Smithsonian rights apply only to EDAN metadata explicitly marked CC0.");
+        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
@@ -128,6 +137,21 @@ public static class ReviewedSourceRights
         // Derivative-work and share-alike obligations require additional review.
         MayReproduceExcerpts = false,
         MayRedistribute = false,
+        AutomatedAccessPermitted = true
+    };
+
+    public static SourceRights SmithsonianCc0Metadata => new()
+    {
+        LicenseId = "CC0-1.0",
+        PolicyUrl = "https://www.si.edu/openaccess/faq",
+        ReviewedOn = new DateOnly(2026, 11, 6),
+        Scope = "Only Smithsonian Open Access public AWS EDAN JSONL records carrying content.descriptiveNonRepeating.metadata_usage.access=CC0; only selected catalog title and freetext metadata, no media, photos, object files or non-CC0 assets",
+        Attribution = "Smithsonian Institution; associated contributing museum and object catalog URL (not endorsement)",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
+        MayReproduceExcerpts = true,
+        MayRedistribute = true,
         AutomatedAccessPermitted = true
     };
 

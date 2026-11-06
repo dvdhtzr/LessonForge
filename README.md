@@ -46,6 +46,22 @@ is needed, we must first design a reviewed, mirror-compatible, item-level
 copyright route. Project Gutenberg's trademark and territorial restrictions
 may still apply to downstream publishing.
 
+### Smithsonian Open Access — CC0 catalog metadata
+
+- **Smithsonian Open Access:** the [developer tools](https://www.si.edu/openaccess/devtools)
+  include a key-required API and an anonymous [AWS Open Data repository](https://registry.opendata.aws/smithsonian-open-access/).
+  LessonForge samples a small set of official weekly JSON-lines metadata
+  shards from one relevant Smithsonian unit (such as the National Museum
+  of American History, American Art Museum, or Air and Space Museum).
+  **Only records explicitly marking metadata as CC0** are accepted.
+  The provider does not ingest digital image files, audio, 3D media, or
+  externally linked pages. The sample is not a comprehensive catalog search.
+  No Smithsonian API key or AWS account is required.
+
+These records describe the museum's catalog metadata, not the content or
+meaning of an artifact or the rights to any associated image, audio or 3D
+asset. The existing permission and provenance checks apply unchanged.
+
 ### Source Registry (initial rollout)
 
 - **Reviewed paths:** Wikipedia Action API article plaintext (CC BY-SA 4.0 with
@@ -66,9 +82,9 @@ may still apply to downstream publishing.
   rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
   and JSON exports contain this inventory. Source URLs produced by agents must
   match the material actually retrieved in the run.
-- **Candidates requiring review:** Smithsonian Open Access, Saylor University,
-  all unreviewed Library of Congress collections, and Gutenberg **ebook text**
-  remain disabled until the relevant rights and access pathways are verified.
+- **Still excluded:** Gutenberg ebook text, Smithsonian images and other
+  media assets, Saylor course material, and unreviewed Library of Congress
+  collections. Each needs separate source-specific rights review.
 - **Limits:** USGS provides recent earthquake examples, while LoC catalog metadata
   documents *the existence and description* of archival records—not their full
   primary-source text. Neither should be presented as direct support for broad

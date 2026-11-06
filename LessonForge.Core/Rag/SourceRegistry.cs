@@ -36,8 +36,8 @@ public sealed class SourceRegistry
         if (_adapters.Any(a => a is null) ||
             _adapters.Select(a => a.Id).Distinct(StringComparer.Ordinal).Count() != _adapters.Count)
             throw new ArgumentException("Source adapters must be nonnull with unique IDs.", nameof(adapters));
-        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog")))
-            throw new ArgumentException("Only explicitly reviewed USGS, LoC and Gutenberg catalog adapters are enabled.", nameof(adapters));
+        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata")))
+            throw new ArgumentException("Only explicitly reviewed USGS, LoC, Gutenberg and Smithsonian metadata adapters are enabled.", nameof(adapters));
 
         Sources =
         [
@@ -50,10 +50,11 @@ public sealed class SourceRegistry
                 "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
                 _adapters.Any(a => a.Id == "usgs-earthquakes"),
                 "Scoped USGS-authored observations permitted; no third-party media"),
-            new("smithsonian", "Smithsonian Open Access", "https://www.si.edu/openaccess",
-                "Official API / approved bulk data", "Museum collections, history, science",
-                "https://www.si.edu/termsofuse", false,
-                "Pending item-level CC0 and third-party rights review; API key required"),
+            new("smithsonian-openaccess-metadata", "Smithsonian Open Access — CC0 Catalog Metadata", "https://www.si.edu/openaccess",
+                "Public anonymous AWS JSONL metadata shards with per-record CC0 check", "Art, American history, aerospace, natural history",
+                "https://www.si.edu/openaccess/faq",
+                _adapters.Any(a => a.Id == "smithsonian-openaccess-metadata"),
+                "CC0 EDAN catalog metadata only; does not download media or use the key-required Open Access API"),
             new("loc-century-of-lawmaking", "Library of Congress — A Century of Lawmaking", "https://www.loc.gov/collections/century-of-lawmaking/",
                 "Official collection JSON API; descriptive records only", "U.S. history, constitutional and congressional documents (1774–1875)",
                 "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/",

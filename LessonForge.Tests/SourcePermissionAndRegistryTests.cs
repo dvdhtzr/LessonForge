@@ -90,7 +90,7 @@ public sealed class SourcePermissionAndRegistryTests
     {
         var registry = new SourceRegistry();
         Assert.True(registry.Sources.Single(x => x.Id == "wikipedia-text").Enabled);
-        Assert.False(registry.Sources.Single(x => x.Id == "smithsonian").Enabled);
+        Assert.False(registry.Sources.Single(x => x.Id == "smithsonian-openaccess-metadata").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "gutenberg-catalog").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "loc-century-of-lawmaking").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "saylor").Enabled);
