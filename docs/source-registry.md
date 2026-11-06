@@ -110,8 +110,13 @@ References for policy review:
   particular passage. Passage identifiers and excerpt-level factual-support
   review remain future work.
 - **Reliability:** optional provider unavailability does not prevent Wikipedia
-  research. If every source is excluded, research fails closed. Cancellations
-  propagate. The vector index remains ephemeral; only provenance metadata and
+  research. **Primary lesson research** with no eligible documents still fails
+  closed. **Supplementary perspective discovery** is allowed to return no
+  additional documents; the Perspective Analyst keeps the original licensed
+  research and must report insufficient evidence rather than manufacture
+  disagreement. It never embeds empty/unlicensed results or invents secondary
+  citations. Transport and cancellation failures are not disguised as an empty
+  result. The vector index remains ephemeral; only provenance metadata and
   finished lesson artifacts persist to SQLite.
 - **Source safety:** structured USGS event fields are treated as evidence data,
   not instructions. We neither ask models to interpret source terms nor allow
