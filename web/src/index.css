@@ -117,6 +117,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .modal { background: var(--surface); border-radius: 16px; max-width: 792px; width: 100%; max-height: 90vh; overflow: auto; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
 .modal h2 { margin-top: 0; }
 .review-modal { max-width: 912px; }
+/* Research summaries, citations and source inventories need more reading room.
+   Keep lesson-plan review at 912px, but give research ~27% more desktop width. */
+.review-modal--research { max-width: 1160px; }
 .review-summary { margin-top: 18px; }
 .review-summary h3 { font-size: 17px; margin: 22px 0 10px; }
 .review-facts { padding-left: 24px; margin: 8px 0 18px; }
