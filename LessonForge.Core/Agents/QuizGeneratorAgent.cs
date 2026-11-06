@@ -34,8 +34,8 @@ public static partial class QuizGeneratorAgent
         Output only valid JSON matching the QuizOutput schema.
         """;
 
-    public static AIAgent CreateAgent(IChatClient chatClient)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
+    public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class QuizGeneratorExecutor(AIAgent agent, RagContext rag) : Executor("QuizGenerator")
     {
