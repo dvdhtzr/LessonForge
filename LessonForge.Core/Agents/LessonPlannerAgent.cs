@@ -91,6 +91,8 @@ public static partial class LessonPlannerAgent
                     ? "Do not manufacture a disagreement: the approved analysis did not establish two credible competing interpretations."
                     : "";
 
+            // Two-dollar interpolation lets ordinary JSON braces remain literal while
+            // {{expression}} still inserts the educator-approved values.
             var prompt = $"""
                 Design a lesson plan for this audience.
 
