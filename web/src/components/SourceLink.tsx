@@ -65,7 +65,12 @@ export default function SourceLink({ citation, providerId, compact = false }: Pr
   )
 
   if (!safe) {
-    return <span className="source-link source-link--invalid">{content}</span>
+    return (
+      <span className="source-link source-link--invalid">
+        {content}
+        <span className="source-kind" role="alert">Invalid source URL</span>
+      </span>
+    )
   }
   return (
     <a className={`source-link ${compact ? 'source-link--compact' : ''}`}
