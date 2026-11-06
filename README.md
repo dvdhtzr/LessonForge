@@ -138,12 +138,15 @@ sources, but local LLM inference does not require a paid API.
 
 ### Reliable structured outputs
 
-All four MAF agents ask Ollama for **JSON mode** and request no separate reasoning
-output on their schema-shaped tasks. Instead of accessing `AgentResponse<T>.Result`
-directly, LessonForge reads the final response text, deserializes the required DTO,
-and rejects empty, invalid or obviously incomplete results with stage-specific
-diagnostics. These checks do not assert that the educational facts are correct;
-the Accuracy Editor and educator review remain necessary.
+The Research Librarian and Curriculum Designer explicitly request **JSON schema**
+output from Ollama. The Assessment Writer and Accuracy Editor still request JSON
+mode. All four agents disable separate reasoning output for structured tasks.
+Rather than accessing `AgentResponse<T>.Result` directly, LessonForge reads
+the final response, deserializes the expected DTO, and rejects missing, empty,
+or otherwise incomplete results with stage-specific diagnostics. Research
+failures distinguish a missing `grounded_facts` field from an empty array without
+logging generated source content. These checks enforce structure, not factual
+correctness; the Accuracy Editor and educator review remain necessary.
 
 This avoids depending on how a model exposes its internal reasoning or final
 answer. The committed Gemma 4 configuration has already reached the research
