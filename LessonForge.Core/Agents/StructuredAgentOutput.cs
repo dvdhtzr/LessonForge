@@ -20,13 +20,14 @@ public static class StructuredAgentOutput
     /// Use the MAF chat-client agent, but explicitly request Ollama JSON mode and
     /// no separate reasoning channel for these schema-shaped tasks.
     /// </summary>
-    public static AIAgent CreateAgent(IChatClient chat, string name, string instructions)
+    public static AIAgent CreateAgent(IChatClient chat, string name, string instructions, int maxOutputTokens)
         => chat.AsAIAgent(new ChatClientAgentOptions
         {
             Name = name,
             ChatOptions = new ChatOptions
             {
                 Instructions = instructions,
+                MaxOutputTokens = maxOutputTokens,
                 ResponseFormat = ChatResponseFormat.Json,
                 Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None }
             }
@@ -55,6 +56,14 @@ public static class StructuredAgentOutput
         string? text, string stage, string? finishReason = null, string? contentKinds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+
+        // A model that reports "length" exhausted its generation budget. Even a
+        // syntactically valid prefix must not be accepted as a complete lesson.
+        if (string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"{stage} output was truncated: the model reached its output-token limit " +
+                $"after {text?.Length ?? 0} characters. Increase LessonForge:Llm:MaxOutputTokens " +
+                "or reduce the requested output; incomplete JSON is never accepted.");
 
         if (string.IsNullOrWhiteSpace(text))
         {
