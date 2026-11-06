@@ -25,21 +25,31 @@ public static partial class LessonPlannerAgent
         band. Younger learners: concrete, playful, short; older learners: more abstraction, analysis,
         and independent work.
 
-        Build:
-        - A clear, engaging title and a short overview.
-        - 3-5 observable, measurable learning_objectives ("Students will be able to…").
-        - Ordered sections, each with age-appropriate body text, 1-3 activities, and a duration.
-        - Key vocabulary with age-appropriate definitions.
-        - The materials the educator needs.
+        Produce a complete lesson plan with these exact JSON field names:
+        - title: an engaging non-empty string.
+        - grade_band: an age-appropriate string supplied in the task.
+        - overview: 2-3 sentences introducing the lesson.
+        - learning_objectives: an array of 3-4 measurable strings.
+        - sections: an array of 3-4 objects, each containing:
+          title (string), body (a substantive student-facing paragraph),
+          activities (array of 1-2 actionable strings), duration_minutes (integer).
+        - vocabulary: an array of objects with term and definition strings.
+        - materials: an array of strings.
+        - citations: an array of objects with title and url strings.
 
-        Ground the content ONLY in the provided facts and sources. Carry the supporting citations
-        into the plan's citations. Do not introduce facts the research did not supply.
+        IMPORTANT: The top-level "sections" array must be nonempty. Do not rename it to
+        "lesson", "outline", "content", "chapters" or "lesson_sections". Every section
+        needs readable body text, not just a heading. Use learning_objectives (plural).
+        Keep the output concise enough to finish the entire JSON object.
 
-        Output only valid JSON matching the LessonPlanOutput schema.
+        Ground the content ONLY in the provided facts and sources. Copy citation URLs
+        from those supplied; never invent a reference or introduce new historical claims.
+        Output one complete JSON object, without markdown or commentary.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
+        => StructuredAgentOutput.CreateSchemaAgent<LessonPlanOutput>(
+            chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class LessonPlannerExecutor(AIAgent agent, RagContext rag) : Executor("LessonPlanner")
     {
@@ -50,6 +60,12 @@ public static partial class LessonPlannerAgent
             var state = await context.ReadStateAsync<LessonWorkflowState>(
                 LessonStateShared.Key, scopeName: LessonStateShared.Scope) ?? new LessonWorkflowState();
             var request = state.Request;
+            if (string.IsNullOrWhiteSpace(request.Topic))
+                throw new InvalidOperationException(
+                    "LessonPlanner cannot find the original lesson request in workflow state.");
+            if (research.GroundedFacts is not { Count: > 0 })
+                throw new InvalidOperationException(
+                    "LessonPlanner received no approved research facts.");
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
@@ -68,8 +84,32 @@ public static partial class LessonPlannerAgent
                 GROUNDED FACTS (use only these; keep their source URLs as citations):
                 {facts}
 
-                Set grade_band to "{gradeBand}". Calibrate everything to age {request.AudienceAge}.
-                Output structured JSON matching LessonPlanOutput.
+                Set grade_band to "{gradeBand}" and calibrate all explanations and activities to age {request.AudienceAge}.
+                Return one complete JSON object using exactly these top-level keys:
+                title, grade_band, overview, learning_objectives, sections, vocabulary, materials, citations.
+
+                REQUIRED STRUCTURE (the example strings below illustrate field types, not lesson content):
+                {
+                  "title": "Lesson title",
+                  "grade_band": "Age-appropriate grade band",
+                  "overview": "Two sentences introducing the topic.",
+                  "learning_objectives": ["Students will be able to explain ..."],
+                  "sections": [
+                    {
+                      "title": "Section heading",
+                      "body": "Student-facing explanatory text grounded in the approved facts.",
+                      "activities": ["Specific classroom activity"],
+                      "duration_minutes": 15
+                    }
+                  ],
+                  "vocabulary": [{"term": "Term", "definition": "Age-appropriate definition"}],
+                  "materials": ["Classroom material"],
+                  "citations": [{"title": "Source title", "url": "URL copied from the approved facts"}]
+                }
+
+                Write 3-4 complete sections with substantive bodies. Use only the approved research
+                above and actual URLs from its supporting sources. Never copy the example values.
+                Do not use alternate JSON keys such as "lesson_plan", "content" or "lesson_sections".
                 """;
 
             var output = await StructuredAgentOutput.RunAsync<LessonPlanOutput>(
