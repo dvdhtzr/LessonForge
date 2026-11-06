@@ -15,10 +15,10 @@ public sealed class RetrievalOptions
     /// <summary>How many closely-linked articles (from the first seed) to also fetch.</summary>
     public int MaxLinkedArticles { get; set; } = 4;
 
-    /// <summary>How many external cited references to attempt to fetch.</summary>
+    /// <summary>Legacy reference limit (external content fetches now require reviewed rights).</summary>
     public int MaxReferences { get; set; } = 8;
 
-    /// <summary>Max concurrent reference fetches.</summary>
+    /// <summary>Legacy reference concurrency (retained for configuration compatibility).</summary>
     public int FetchConcurrency { get; set; } = 4;
 }
 
@@ -56,8 +56,9 @@ public sealed class RetrievalSession(InMemoryVectorIndex index, IReadOnlyList<So
 }
 
 /// <summary>
-/// Orchestrates the RAG ingest: English Wikipedia (seed + closely-linked articles) plus freely
-/// fetchable cited references → chunk → embed → in-memory index. Built once per generation run.
+/// Orchestrates rights-eligible Wikipedia article extracts and optional registered
+/// providers through the existing chunk → embed → in-memory index. Third-party
+/// external reference URLs are discovered but not ingested without permission.
 /// </summary>
 public sealed class RetrievalService(
     WikipediaClient wikipedia,
@@ -85,7 +86,7 @@ public sealed class RetrievalService(
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var unreviewedReferenceCount = 0;
 
-        // Seed articles + their linked articles and cited references.
+        // Seed Wikipedia article text and closely linked article text.
         for (var i = 0; i < seedTitles.Count; i++)
         {
             var title = seedTitles[i];
