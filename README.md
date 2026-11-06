@@ -105,9 +105,10 @@ search results, including when a user types the title in lowercase. For
 explicitly named subjects, it accepts only the matching canonical title and
 does not automatically expand to other people's linked biographies. A failed
 direct lookup may search for the **same** exact title, but never chooses a
-similar-name Wikipedia result as a fallback. Other rights-reviewed providers
-may still contribute when their records explicitly name the requested subject;
-for two-part names, surname-only catalog matches are excluded.
+similar-name Wikipedia result as a fallback. When Wikipedia cannot
+provide an exact match, other rights-reviewed providers may contribute only
+records that explicitly name the full requested subject. For two-part named
+topics, surname-only catalog matches are excluded even if Wikipedia matches.
 
 The Research Librarian also requires named-topic summaries to identify the
 requested subject. If a valid JSON response describes a different subject,
