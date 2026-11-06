@@ -78,11 +78,12 @@ public static partial class PerspectiveAnalystAgent
                 throw new InvalidOperationException(
                     "Perspective Analyst requires the existing source retrieval index.");
 
-            // Actively discover another bounded set of pages/references about interpretive
-            // disagreement. Unlike a model-only debate, this can expand the evidence
-            // inventory; it remains local-embedding + public Wikipedia retrieval.
+            // Extra discovery is optional: a narrowly phrased interpretive
+            // search may find no eligible pages even when the primary topic
+            // has ample legitimate sources. Never weaken the rights gate or
+            // discard the existing evidence just to satisfy this second search.
             var discoveryQuery = $"{request.Topic} interpretations historical scholarly debates";
-            var additionalSession = await retrieval.BuildAsync(
+            var additionalSession = await retrieval.BuildSupplementaryAsync(
                 discoveryQuery, ct: cancellationToken);
             rag.PerspectiveSession = additionalSession;
 
@@ -95,12 +96,19 @@ public static partial class PerspectiveAnalystAgent
             var foundation = await RagPrompt.GatherEvidenceAsync(
                 originalSession, queries, perQuery: 2, maxSnippets: 4,
                 maxCharsPerSnippet: 500, ct: cancellationToken);
-            var supplementary = await RagPrompt.GatherEvidenceAsync(
-                additionalSession, queries, perQuery: 2, maxSnippets: 4,
-                maxCharsPerSnippet: 500, ct: cancellationToken);
+            var supplementary = additionalSession is not null
+                ? await RagPrompt.GatherEvidenceAsync(
+                    additionalSession, queries, perQuery: 2, maxSnippets: 4,
+                    maxCharsPerSnippet: 500, ct: cancellationToken)
+                : "(No additional rights-eligible perspective sources were retrieved. " +
+                  "Evaluate only the original evidence; if it does not establish the " +
+                  "interpretations, report insufficient_evidence, not an invented debate.)";
 
+            var supplementaryCitations = additionalSession is not null
+                ? RagPrompt.InventoryCitations(additionalSession)
+                : [];
             var allowed = research.SourceInventory
-                .Concat(RagPrompt.InventoryCitations(additionalSession))
+                .Concat(supplementaryCitations)
                 .Where(c => !string.IsNullOrWhiteSpace(c.Url))
                 .GroupBy(c => c.Url, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
