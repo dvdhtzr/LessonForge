@@ -81,6 +81,7 @@ function dispatch(frame: string, h: GenerateHandlers) {
   switch (event) {
     case 'run': h.onRun?.(data); break
     case 'stage': h.onStage?.(data); break
+    case 'progress': h.onProgress?.(data); break
     case 'gate': h.onGate?.(data); break
     case 'complete': h.onComplete?.(data); break
     case 'error': h.onError?.(data.message ?? 'Unknown error'); break
