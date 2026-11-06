@@ -75,14 +75,19 @@ uses, especially output redistribution and commercial publication.
 |---|---|---|---|
 | Wikipedia (English article plaintext) | MediaWiki Action API | Enabled | CC BY-SA attribution/ShareAlike; imported third-party and non-text material may have exceptions |
 | USGS Earthquake Hazards GeoJSON | Official 4.5+ weekly feed | Enabled for earthquake topics only | USGS-curated structured observations; no linked event products or media |
-| Smithsonian Open Access | Official API (key) or official JSON exports | Disabled | Check each asset's CC0 designation, third-party rights, and API conditions |
+| Smithsonian Open Access — public AWS EDAN metadata | Anonymous official S3 JSONL shards, scoped by museum unit | Enabled for **CC0 metadata records only** | Up to eight sampled shards (not comprehensive); media rights are separate, no images/3D/audio or key-required API used |
 | Library of Congress — *A Century of Lawmaking for a New Nation* | Official JSON API | Enabled for U.S. constitutional and congressional-history topics | Only explicitly identified records in the public-domain collection; no OCR, book contents, linked assets or conflicting item rights |
-| Project Gutenberg | Official catalog and approved mirror/harvest paths | Disabled | U.S. vs other countries' copyright, translations and editions, robot policy/trademark |
+| Project Gutenberg weekly catalog CSV | Official machine-readable CSV, locally cached | Enabled for bibliographic metadata only | No full-text ebook retrieval or implicit edition copyright clearance |
 | Saylor University | Original course materials and links | Disabled | Original CC BY content differs from third-party sources and exam banks |
 
 References for policy review:
 - Wikimedia Foundation: https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
-- Smithsonian Open Access: https://www.si.edu/openaccess/faq
+- Smithsonian Open Access developer tools: https://www.si.edu/openaccess/devtools
+- Smithsonian Open Access FAQ: https://www.si.edu/openaccess/faq
+- Public Smithsonian Open Access AWS dataset: https://registry.opendata.aws/smithsonian-open-access/
+- Smithsonian public bucket metadata index: https://smithsonian-open-access.s3-us-west-2.amazonaws.com/metadata/edan/index.txt
+- Smithsonian EDAN metadata field guidance: https://edan.si.edu/openaccess/docs/
+- Project Gutenberg official offline catalog: https://www.gutenberg.org/ebooks/offline_catalogs.html
 - Smithsonian API: https://www.si.edu/openaccess/devtools
 - Smithsonian Terms: https://www.si.edu/termsofuse
 - USGS copyright: https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits
@@ -113,6 +118,22 @@ References for policy review:
   never OCR, underlying primary documents, images or arbitrary item links.
   Such descriptions support facts about a document's existence/metadata,
   **not historical assertions drawn from its unseen full text**.
+- **Project Gutenberg:** locally caches the *official* machine-readable
+  `pg_catalog.csv` once every seven days; bounded download (35 MB), CSV
+  quoting support, topic matching, canonical ebook record links. Only book
+  titles/authors/subject headings and Gutenberg release dates are admitted.
+  No ebook contents are read; the edition, territorial rights, and original
+  source publication dates require independent verification.
+- **Smithsonian:** the key-required API is not used. An anonymous, official
+  Open Access S3 bucket provides publicly indexed JSONL shards; this pilot
+  inspects up to eight bounded hash-shard files from one unit selected by
+  subject (NMAH, SAAM, NASM, NMNH Botany). It admits only `edanmdm` items
+  where `content.descriptiveNonRepeating.metadata_usage.access == "CC0"`,
+  and normalizes catalog title/date/names/selected object notes only.
+  Media rights are independent of metadata rights. No media, object images,
+  3D assets, restricted texts or non-CC0 metadata enters RAG. Because shard
+  selection samples only a subset of the catalog, a valid source may not be
+  discovered; that must never produce invented citations.
 - **Provenance:** trusted records include source provider ID, canonical document
   ID/URL, retrieval timestamp, license/scope/policy, and SHA-256 of the text
   actually indexed. Chunks copy source identity and content hash.
@@ -171,3 +192,26 @@ committed, but **its local .NET verification and live API/Ollama integration
 are not yet confirmed**. The LoC API could return zero records under the
 strict collection membership/rights filters; inspect live evidence inventory
 before treating this provider as accepted.
+
+## Smithsonian live smoke and limitations
+
+Test **American Revolution**, **early aviation** or **American landscape
+painting** using the new metadata adapter. Inspect the Research source
+inventory and teacher `source_records` for
+`smithsonian-openaccess-metadata`. If eligible records appear, verify
+their canonical `collections.si.edu/search/detail/edanmdm:...` links,
+and confirm the generated lesson does not claim to have read the museum
+object or seen its media. For unrelated topics or records without
+CC0 metadata flags, missing Smithsonian sources are an acceptable,
+explicit outcome; do not loosen the gate.
+
+The Smithsonian dataset is large and the eight-shard search is a
+**bounded sample, not a full-corpus index**. Later work may add a locally
+built index over approved bulk metadata, but should not blindly download
+or embed millions of records per request. No paid services, API keys,
+AWS account or managed inference are required.
+
+These PR additions are committed as offline-testable code, not yet
+verified in a running .NET 10/Ollama environment. The owner's local
+`scripts/check.ps1` and manual live source inventory remain the
+acceptance criteria.
