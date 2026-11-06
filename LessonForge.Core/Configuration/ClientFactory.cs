@@ -40,8 +40,9 @@ public sealed class ClientFactory
             NetworkTimeout = TimeSpan.FromSeconds(options.NetworkTimeoutSeconds),
             RetryPolicy = new ClientRetryPolicy(options.MaxRetries)
         };
-        // Ollama ignores the API key, but the OpenAI client requires a non-empty credential.
-        _client = new OpenAIClient(new ApiKeyCredential(options.ApiKey), clientOptions);
+        // The OpenAI-compatible SDK requires a nonempty credential. Ollama ignores
+        // this hardcoded placeholder; no user credential or API key is needed.
+        _client = new OpenAIClient(new ApiKeyCredential("ollama"), clientOptions);
     }
 
     private static readonly Lazy<ClientFactory> s_default = new(
