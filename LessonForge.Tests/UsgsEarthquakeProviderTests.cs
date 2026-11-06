@@ -109,7 +109,7 @@ public sealed class UsgsEarthquakeProviderTests
         var sources = await new UsgsEarthquakeProvider(new HttpClient(handler))
         {
             MaxEvents = 1
-        }.RetrieveAsync("earthquake"));
+        }.RetrieveAsync("earthquake");
         Assert.Single(sources);
         Assert.Equal("us1234", sources[0].CanonicalId);
     }
