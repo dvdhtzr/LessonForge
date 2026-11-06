@@ -52,8 +52,9 @@ export default function LessonView() {
         </div>
       )}
 
-      <div className="card">
-        <AccuracyReview
+      {audience === 'teacher' && (
+        <div className="card">
+          <AccuracyReview
           flags={result.flags || []}
           coverage={result.citation_coverage ?? 0}
           notes={result.notes || ''}
@@ -64,8 +65,9 @@ export default function LessonView() {
                 ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             })
           }}
-        />
-      </div>
+          />
+        </div>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Export</h3>
