@@ -19,25 +19,22 @@ topic into a citation-backed lesson plan and quiz. Built with **React 19 + TypeS
 
 ## Running it locally
 
-The web app talks to the LessonForge API. Start the API first (defaults to `http://localhost:5174`),
-then:
+Follow the [repository setup guide](../README.md) to install the .NET 10 SDK, Node.js,
+Ollama and the configured models. On Windows, run `scripts/setup.ps1` and
+`scripts/start.ps1` from the repository root; the scripts launch the API and frontend
+without requiring environment variables.
+
+To run just the frontend manually, start the API on `http://localhost:5174`,
+then run:
 
 ```bash
 cd web
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:5173.
-
-If your API runs on a different address, point the dev server at it:
-
-```bash
-LESSONFORGE_API=http://localhost:5000 npm run dev
-```
-
-`/api/*` requests are proxied to that address (see `vite.config.ts`), so there are no CORS
-surprises in development.
+Open http://localhost:5173. The `/api/*` proxy is fixed to the API's documented
+local address in `vite.config.ts`, so it works from a clean checkout.
 
 ## Scripts
 

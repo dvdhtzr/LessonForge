@@ -6,9 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: process.env.LESSONFORGE_API ?? 'http://localhost:5174',
+        target: 'http://localhost:5174',
         changeOrigin: true,
       },
     },

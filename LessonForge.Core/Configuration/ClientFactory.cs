@@ -10,8 +10,8 @@ namespace LessonForge.Core.Configuration;
 
 /// <summary>
 /// Builds the chat clients and embedding generator the whole app runs on, all bound to a local
-/// Ollama server via its OpenAI-compatible API. Provides a dual-model setup (primary + fast chat)
-/// plus an embedding generator.
+/// Ollama server via its OpenAI-compatible API. Uses the configured chat model
+/// for each workflow agent and a separate embedding generator.
 ///
 /// Usable two ways:
 ///  - DI: register a single <see cref="ClientFactory"/> instance (see the API host) and inject it.
@@ -40,8 +40,9 @@ public sealed class ClientFactory
             NetworkTimeout = TimeSpan.FromSeconds(options.NetworkTimeoutSeconds),
             RetryPolicy = new ClientRetryPolicy(options.MaxRetries)
         };
-        // Ollama ignores the API key, but the OpenAI client requires a non-empty credential.
-        _client = new OpenAIClient(new ApiKeyCredential(options.ApiKey), clientOptions);
+        // The OpenAI-compatible SDK requires a nonempty credential. Ollama ignores
+        // this hardcoded placeholder; no user credential or API key is needed.
+        _client = new OpenAIClient(new ApiKeyCredential("ollama"), clientOptions);
     }
 
     private static readonly Lazy<ClientFactory> s_default = new(
@@ -50,13 +51,12 @@ public sealed class ClientFactory
     /// <summary>A process-wide factory configured from <c>appsettings.json</c> + environment.</summary>
     public static ClientFactory Default => s_default.Value;
 
-    /// <summary>Loads <see cref="LlmOptions"/> from config, honoring <c>LessonForge__Llm__*</c> env vars.</summary>
+    /// <summary>Loads <see cref="LlmOptions"/> from the local appsettings.json file.</summary>
     public static LlmOptions LoadOptions()
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-            .AddEnvironmentVariables()
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
             .Build();
 
         var options = new LlmOptions();
@@ -65,14 +65,10 @@ public sealed class ClientFactory
     }
 
     /// <summary>
-    /// A chat client bound to Ollama. <paramref name="fast"/> selects the smaller
-    /// <see cref="LlmOptions.FastChatModel"/>; otherwise the primary <see cref="LlmOptions.ChatModel"/>.
+    /// A chat client bound to the model configured in the repository's appsettings.json.
     /// </summary>
-    public IChatClient CreateChatClient(bool fast = false)
-    {
-        var model = fast ? Options.FastChatModel : Options.ChatModel;
-        return _client.GetChatClient(model).AsIChatClient();
-    }
+    public IChatClient CreateChatClient()
+        => _client.GetChatClient(Options.ChatModel).AsIChatClient();
 
     /// <summary>An embedding generator bound to Ollama's <see cref="LlmOptions.EmbeddingModel"/>.</summary>
     public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator()
