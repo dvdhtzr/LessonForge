@@ -76,8 +76,30 @@ public sealed class RetrievalService(
     /// Builds a <see cref="RetrievalSession"/> for a topic. <paramref name="progress"/>, if given,
     /// receives short human-readable status lines (surfaced to the UI as the research stage runs).
     /// </summary>
-    public async Task<RetrievalSession> BuildAsync(
+    /// <summary>
+    /// Primary lesson research must have at least one rights-eligible source.
+    /// Never return an empty index to the Research Librarian.
+    /// </summary>
+    public Task<RetrievalSession> BuildAsync(
         string topic, IProgress<string>? progress = null, CancellationToken ct = default)
+        => BuildCoreAsync(topic, requireEvidence: true, progress, ct);
+
+    /// <summary>
+    /// Best-effort *additional* research for the Perspective Analyst. An empty,
+    /// fully evaluated result is not a failure of the primary research: the
+    /// original rights-eligible session remains available. Actual transport,
+    /// cancellation and indexing faults are NOT hidden by this API.
+    /// </summary>
+    public async Task<RetrievalSession?> BuildSupplementaryAsync(
+        string topic, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        var session = await BuildCoreAsync(topic, requireEvidence: false, progress, ct);
+        return session.Sources.Count == 0 ? null : session;
+    }
+
+    private async Task<RetrievalSession> BuildCoreAsync(
+        string topic, bool requireEvidence, IProgress<string>? progress,
+        CancellationToken ct)
     {
         progress?.Report($"Searching Wikipedia for \"{topic}\"…");
         var seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
@@ -141,9 +163,19 @@ public sealed class RetrievalService(
                 progress?.Report($"Skipped {document.ProviderId} evidence: {decision.Reason}");
         }
         if (admitted.Count == 0)
-            throw new InvalidOperationException(
-                "No rights-eligible source evidence could be retrieved. " +
-                "The lesson cannot be generated from unsupported material.");
+        {
+            if (requireEvidence)
+                throw new InvalidOperationException(
+                    "No rights-eligible source evidence could be retrieved. " +
+                    "The lesson cannot be generated from unsupported material.");
+
+            // No model input or embedding occurs when an optional discovery query
+            // yields zero eligible documents. The caller reuses primary research
+            // and must explicitly report its limited perspective coverage.
+            progress?.Report(
+                "No additional rights-eligible perspective sources found; retaining primary research evidence.");
+            return new RetrievalSession(new InMemoryVectorIndex(embeddings), []);
+        }
 
         // Chunk + embed everything into a fresh index.
         progress?.Report("Embedding sources into the vector index…");
