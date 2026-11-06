@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, generate } from '../api/client'
 import type { GateEvent, LessonRequest, StageStatus } from '../types'
-import StageTimeline, { getStage } from '../components/StageTimeline'
+import StageTimeline from '../components/StageTimeline'
 import AgentActivity, { type ActivityEntry } from '../components/AgentActivity'
 import GateReview from '../components/GateReview'
 
@@ -54,9 +54,8 @@ export default function RunView() {
           setStatuses((prev) => ({ ...prev, [e.name]: e.status }))
           setLatestStageId(e.name)
           setProgressMessage(null)
-          const role = getStage(e.name)?.role ?? e.name
-          const verb = e.status === 'started' ? 'started' : e.status === 'completed' ? 'completed' : 'failed'
-          addActivity({ kind: 'stage', stage: e.name, message: `${role} ${verb}.` })
+          const verb = e.status === 'started' ? 'Started' : e.status === 'completed' ? 'Completed' : 'Failed'
+          addActivity({ kind: 'stage', stage: e.name, message: `${verb}.` })
         },
         onProgress: (e) => {
           setProgressMessage(e.message)
