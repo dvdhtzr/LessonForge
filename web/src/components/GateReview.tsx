@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CitationRef, GateEvent, GroundedFact, LessonPlanOutput, ResearchOutput } from '../types'
 import PerspectivePanel from './PerspectivePanel'
+import SourceLink from './SourceLink'
 
 interface Props {
   gate: GateEvent
@@ -183,14 +184,7 @@ function CitationLinks({ citations }: { citations?: CitationRef[] }) {
   return (
     <span className="review-citations">
       Sources: {citations.map((citation, index) => (
-        <span key={index}>
-          {index > 0 && ' · '}
-          {/^https?:\/\//i.test(citation.url ?? '')
-            ? <a href={citation.url} target="_blank" rel="noopener noreferrer">
-                {citation.title?.trim() || citation.url}
-              </a>
-            : <span className="error">Invalid source URL</span>}
-        </span>
+        <span className="source-inline" key={index}><SourceLink citation={citation} compact /></span>
       ))}
     </span>
   )
@@ -226,9 +220,9 @@ function ResearchSummary({ research }: { research: ResearchOutput }) {
       {sources.length > 0 && (
         <details className="review-inventory">
           <summary>View all {sources.length} retrieved sources</summary>
-          <ul>
+          <ul className="source-list">
             {sources.map((source, index) => (
-              <li key={index}><CitationLinks citations={[source]} /></li>
+              <li key={index}><SourceLink citation={source} /></li>
             ))}
           </ul>
         </details>
