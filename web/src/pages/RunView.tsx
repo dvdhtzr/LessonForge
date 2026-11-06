@@ -41,8 +41,13 @@ export default function RunView() {
   if (!state?.request) {
     return (
       <div className="card">
-        <p>No run in progress.</p>
-        <button onClick={() => navigate('/')}>Start a new lesson</button>
+        <div className="empty">
+          <span className="big">📝</span>
+          <p>There's no lesson being created right now.</p>
+        </div>
+        <div className="btn-row">
+          <button onClick={() => navigate('/')}>Start a new lesson</button>
+        </div>
       </div>
     )
   }
@@ -57,8 +62,11 @@ export default function RunView() {
 
   return (
     <div className="card">
-      <h2>Generating “{state.request.topic}”</h2>
-      <p className="muted">Target age {state.request.audience_age}. This can take a few minutes on a local model.</p>
+      <h2>Building your lesson on “{state.request.topic}”</h2>
+      <p className="muted">
+        For students around age {state.request.audience_age}. Our team of assistants is at work — this usually
+        takes a few minutes. You can keep this tab open and watch the progress below.
+      </p>
 
       <StageTimeline statuses={statuses} />
 

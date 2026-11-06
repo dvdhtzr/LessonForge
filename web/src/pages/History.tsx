@@ -10,9 +10,12 @@ export default function History() {
 
   return (
     <div className="card">
-      <h2>Saved lessons</h2>
+      <h2>My lessons</h2>
       {!data || data.length === 0 ? (
-        <p className="muted">No lessons yet. Create one from the “New lesson” tab.</p>
+        <div className="empty">
+          <span className="big">🍎</span>
+          <p>You haven't created any lessons yet.<br />Head to <strong>New lesson</strong> to make your first one.</p>
+        </div>
       ) : (
         <ul className="summaries">
           {data.map((l) => (

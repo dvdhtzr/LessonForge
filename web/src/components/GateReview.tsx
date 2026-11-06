@@ -28,8 +28,8 @@ export default function GateReview({ gate, onApprove, onAbort }: Props) {
       <div className="modal">
         <h2>{gate.stage === 'research' ? 'Review the research' : 'Review the lesson plan'}</h2>
         <p className="muted">
-          Approve to continue, edit the content first, or abort the run. Edits flow straight into the
-          next stage.
+          Take a look before we continue. Approve it as-is, make a few edits first, or stop here.
+          Anything you change is used for the next step.
         </p>
 
         {!editing ? <Summary gate={gate} /> : (
