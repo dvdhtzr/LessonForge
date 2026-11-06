@@ -206,7 +206,7 @@ public sealed class SmithsonianOpenAccessMetadataProvider(HttpClient http, strin
         }
         if (!identifier.StartsWith("edanmdm:" + unit + "_", StringComparison.OrdinalIgnoreCase) ||
             identifier.Length > 180 ||
-            identifier.AsSpan("edanmdm:".Length).ContainsAny("?#/") ||
+            identifier.IndexOfAny(new[] { '?', '#', '/' }) >= 0 ||
             identifier.Skip("edanmdm:".Length).Any(c =>
                 !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.')))
             return null;
