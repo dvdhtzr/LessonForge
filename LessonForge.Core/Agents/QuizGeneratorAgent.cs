@@ -86,6 +86,16 @@ public static partial class QuizGeneratorAgent
 
             var citations = plan.Citations.Count > 0 ? plan.Citations : state.Research?.SourceInventory ?? new();
             var citationList = string.Join("\n", citations.Select(c => $" - {c.Title}: {c.Url}"));
+            var approvedPerspectives = state.Research?.Perspectives;
+            if (request.ExplorePerspectives && approvedPerspectives is null)
+                throw new InvalidOperationException(
+                    "QuizGenerator is missing the educator-approved perspective analysis.");
+            var perspectiveContext = PerspectivePrompt.ForLesson(approvedPerspectives);
+            var perspectiveInstruction = approvedPerspectives?.Status == PerspectiveAnalysisValidator.Supported
+                ? "Include at least one age-appropriate question requiring students to compare the evidence for different interpretations, not to choose which worldview they personally endorse. Cite the supplied sources."
+                : approvedPerspectives is not null
+                    ? "Do not create an artificial debate question; the reviewed evidence does not establish substantive disagreement."
+                    : "";
 
             var prompt = $"""
                 Write a multiple-choice quiz for this lesson.
@@ -94,6 +104,9 @@ public static partial class QuizGeneratorAgent
 
                 AVAILABLE SOURCES (cite by URL):
                 {citationList}
+
+                {perspectiveContext}
+                {perspectiveInstruction}
 
                 Produce exactly {cfg.QuestionCount} questions, each with exactly {cfg.OptionCount}
                 options. Difficulty: {difficulty}.
