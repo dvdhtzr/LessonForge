@@ -110,6 +110,9 @@ public static partial class QuizGeneratorAgent
                 agent, prompt, "QuizGenerator", cancellationToken);
             ValidateCounts(output, cfg);
 
+            // The plan arriving through the RequestPort is the educator-approved
+            // version, potentially edited. The final Accuracy Editor must see it.
+            state.Plan = plan;
             state.Quiz = output;
             state.CurrentStep = 4;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
