@@ -71,7 +71,7 @@ public static partial class LessonPlannerAgent
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
                 $"{i + 1}. {f.Statement} [sources: {string.Join("; ", f.Citations.Select(c => $"{c.Title} ({c.Url})"))}]"));
 
-            var prompt = $"""
+            var prompt = $$"""
                 Design a lesson plan for this audience.
 
                 TOPIC: {{request.Topic}}
