@@ -1,6 +1,6 @@
 # Open Educational Sources — architecture and policy review
 **Reviewed:** 2026-11-06  
-**Status:** source-registry/permission-gate pilot; local compile and live Ollama verification pending.
+**Status:** Wikipedia + USGS vertical slice locally verified; Library of Congress archival-catalog adapter implemented, pending Windows verification and live LoC API smoke test.
 
 ## Architecture audit (before modification)
 
@@ -24,9 +24,9 @@ leave the MAF graph, in-memory vector store and local inference unchanged.
 ## New narrow data path
 
 ```
-Wikipedia plaintext extractor        USGS Earthquake GeoJSON adapter
-    | CC BY-SA text only                 | typed event fields only
-    +----------------------+--------------+
+Wikipedia plaintext     USGS earthquake JSON     LoC Century of Lawmaking API
+     | CC BY-SA text      | typed events only       | reviewed PD catalog only
+     +--------------------+-------------------------+
                            |
           SourceDocument + SourceRights
                            |
@@ -45,9 +45,10 @@ Wikipedia plaintext extractor        USGS Earthquake GeoJSON adapter
 ```
 
 `SourceRegistry` lists reviewed and disabled candidates; only explicitly
-configured adapters execute. The main application configures USGS without an
-API key. The adapter does not crawl arbitrary websites or parse third-party
-descriptions. A live provider outage is isolated; a run without **any**
+configured adapters execute. The main application configures USGS and a
+narrow Library of Congress collection adapter without any API key.
+Neither provider crawls arbitrary linked websites, retrieves attachments
+or treats another collection's rights statement as reusable permission. A live provider outage is isolated; a run without **any**
 rights-eligible evidence fails rather than claiming successful research.
 
 ## Per-item decisions
@@ -60,8 +61,9 @@ scope, attribution text and review date.
 **Default is deny.** `SourcePermissionGate` permits the model-input path only
 for verified, scoped source types and providers. A recognized provider's domain
 alone does not grant rights: the Wikipedia decision is limited to MediaWiki
-article plaintext, and the USGS decision to structured catalog event
-observations. Neither policy covers every linked asset.
+article plaintext, the USGS decision to structured catalog event observations,
+and the LoC decision to bibliographic descriptions in one explicitly
+public-domain collection. None of these policies cover every linked asset.
 
 These application decisions are bounded engineering controls, **not legal
 opinions**. Recheck vendor terms and jurisdiction-specific rights before new
@@ -74,7 +76,7 @@ uses, especially output redistribution and commercial publication.
 | Wikipedia (English article plaintext) | MediaWiki Action API | Enabled | CC BY-SA attribution/ShareAlike; imported third-party and non-text material may have exceptions |
 | USGS Earthquake Hazards GeoJSON | Official 4.5+ weekly feed | Enabled for earthquake topics only | USGS-curated structured observations; no linked event products or media |
 | Smithsonian Open Access | Official API (key) or official JSON exports | Disabled | Check each asset's CC0 designation, third-party rights, and API conditions |
-| Library of Congress | Official JSON API | Disabled | Per-item rights/advisory and primary-source content access |
+| Library of Congress — *A Century of Lawmaking for a New Nation* | Official JSON API | Enabled for U.S. constitutional and congressional-history topics | Only explicitly identified records in the public-domain collection; no OCR, book contents, linked assets or conflicting item rights |
 | Project Gutenberg | Official catalog and approved mirror/harvest paths | Disabled | U.S. vs other countries' copyright, translations and editions, robot policy/trademark |
 | Saylor University | Original course materials and links | Disabled | Original CC BY content differs from third-party sources and exam banks |
 
@@ -87,6 +89,8 @@ References for policy review:
 - USGS GeoJSON format: https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
 - USGS feed: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson
 - Library of Congress API: https://www.loc.gov/apis/json-and-yaml
+- LoC Century of Lawmaking collection: https://www.loc.gov/collections/century-of-lawmaking/
+- LoC collection public-domain rights: https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/
 - Project Gutenberg automated access: https://www.gutenberg.org/policy/robot_access.html
 - Saylor original/third-party licensing: https://www.saylor.org/OpenContent
 
@@ -101,6 +105,14 @@ References for policy review:
   short timeout, 1.5 MB maximum input, bounded event count, strict event ID,
   type/date/magnitude validation, and canonical event-page URLs constructed
   locally (never trusted blindly from remote JSON).
+- **Library of Congress:** one explicitly public-domain congressional history
+  collection (1774–1875), official JSON catalog API, topic-scoped search,
+  bounded results/response/timeout, HTTPS final-endpoint check, verified
+  collection membership and no conflicting item rights. Only title, date
+  and bibliographic descriptions are normalized as *catalog metadata*,
+  never OCR, underlying primary documents, images or arbitrary item links.
+  Such descriptions support facts about a document's existence/metadata,
+  **not historical assertions drawn from its unseen full text**.
 - **Provenance:** trusted records include source provider ID, canonical document
   ID/URL, retrieval timestamp, license/scope/policy, and SHA-256 of the text
   actually indexed. Chunks copy source identity and content hash.
@@ -138,10 +150,16 @@ References for policy review:
    when USGS is unavailable, without inventing missing USGS evidence.
 5. **Future: actual passage-level support:** preserve exact excerpt/page/offset
    IDs, measure citation alignment, and improve source-independence evidence.
-6. **Future: additional provider:** Smithsonian per-item CC0 metadata or
-   similarly scoped, officially accessible library collection, after confirming
-   API terms and rights on the exact material to ingest.
+6. **Live LoC acceptance:** run a lesson on *The United States Constitution* or
+   *Congress and the Civil War*, and inspect whether any LoC catalog results
+   were admitted. The public API may return no eligible matches: that must not
+   break Wikipedia research or cause invented LoC citations.
+7. **Future: additional provider:** Smithsonian per-item CC0 metadata after
+   confirming API terms and rights on the exact material to ingest.
 
-No build, network integration test or live Ollama result is asserted by this
-document; offline tests are committed but require execution in the user's
-Windows .NET 10 environment.
+The preceding Wikipedia/USGS implementation passed the user's local gate and
+functional smoke check. The new LoC adapter and its offline fixtures are
+committed, but **its local .NET verification and live API/Ollama integration
+are not yet confirmed**. The LoC API could return zero records under the
+strict collection membership/rights filters; inspect live evidence inventory
+before treating this provider as accepted.
