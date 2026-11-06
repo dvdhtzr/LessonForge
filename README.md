@@ -38,6 +38,14 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   `nomic-embed-text:v1.5` for the RAG embeddings. Both names are defined in the
   committed `LessonForge.Api/appsettings.json`. No API keys, cloud services, or
   manually configured environment variables are necessary.
+- **Bounded Accuracy Editor review:** instead of requesting an unbounded audit of
+  every section and quiz question in one model response, the final MAF executor
+  validates small batches of two items, using source excerpts relevant to each
+  scope. A `finish_reason=length` response is never accepted; two-item batches
+  are retried as separate items, and a failed single-item review fails the
+  entire stage without persisting a partial audit. Valid reports are aggregated,
+  with AI-estimated citation coverage weighted by reviewed items. This uses
+  additional local model calls to avoid the fragile single-response token budget.
 - **Structured Accuracy Review:** the final agent produces advisory findings with
   High / Medium / Low / Informational severity, a controlled issue category,
   a lesson-section or quiz-question reference (S# / Q#), a concrete educator
