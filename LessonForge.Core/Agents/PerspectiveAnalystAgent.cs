@@ -31,7 +31,7 @@ public static partial class PerspectiveAnalystAgent
         Return a compact JSON object with EXACT keys:
         status: one of "supported_disagreement", "no_substantive_disagreement",
           "insufficient_evidence".
-        perspectives: array of 2-3 objects ONLY for supported_disagreement; each has
+        perspectives: exactly 2 objects ONLY for supported_disagreement; each has
           name, interpretation, evidence_basis, limitations and citations (array of
           one or more {title, url} objects copied from SOURCE excerpts).
           Use [] for the other statuses. Each interpretation is a meaningful
