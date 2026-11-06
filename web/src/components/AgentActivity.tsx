@@ -39,7 +39,7 @@ export default function AgentActivity({
       : waitingForReview
         ? 'Your review is ready'
         : isWorking
-          ? `${stage.role} is working`
+          ? `${stage?.role ?? 'Agent'} is working`
           : connected
             ? 'Preparing the next step'
             : 'Connecting to LessonForge'
