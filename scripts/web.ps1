@@ -1,13 +1,33 @@
-# Install web dependencies and type-check + build the frontend.
+# Install web dependencies, lint, type-check, and build the frontend.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-Set-Location (Join-Path $root 'web')
-if (Test-Path 'package-lock.json') {
-  Write-Host '==> npm ci'
-  npm ci
-} else {
-  Write-Host '==> npm install'
-  npm install
+
+Push-Location (Join-Path $root 'web')
+try {
+    if (Test-Path 'package-lock.json') {
+        Write-Host '==> Installing locked web dependencies (npm ci)'
+        & npm ci
+    }
+    else {
+        Write-Host '==> Installing web dependencies (npm install)'
+        & npm install
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Web dependency installation failed with exit code $LASTEXITCODE."
+    }
+
+    Write-Host '==> Linting frontend'
+    & npm run lint
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend lint failed with exit code $LASTEXITCODE."
+    }
+
+    Write-Host '==> Type-checking and building frontend'
+    & npm run build
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend build failed with exit code $LASTEXITCODE."
+    }
 }
-Write-Host '==> npm run build'
-npm run build
+finally {
+    Pop-Location
+}
