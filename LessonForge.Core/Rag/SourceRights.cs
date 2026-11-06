@@ -140,6 +140,21 @@ public static class ReviewedSourceRights
         AutomatedAccessPermitted = true
     };
 
+    public static SourceRights SmithsonianCc0Metadata => new()
+    {
+        LicenseId = "CC0-1.0",
+        PolicyUrl = "https://www.si.edu/openaccess/faq",
+        ReviewedOn = new DateOnly(2026, 11, 6),
+        Scope = "Only Smithsonian Open Access public AWS EDAN JSONL records carrying content.descriptiveNonRepeating.metadata_usage.access=CC0; only selected catalog title and freetext metadata, no media, photos, object files or non-CC0 assets",
+        Attribution = "Smithsonian Institution; associated contributing museum and object catalog URL (not endorsement)",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
+        MayReproduceExcerpts = true,
+        MayRedistribute = true,
+        AutomatedAccessPermitted = true
+    };
+
     public static SourceRights GutenbergCatalogMetadata => new()
     {
         LicenseId = "PG-CATALOG-PD",
