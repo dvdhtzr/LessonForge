@@ -170,7 +170,4 @@ public static class StructuredAgentOutput
         }
         return missing;
     }
-
-        return value;
-    }
 }
