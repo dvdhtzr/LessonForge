@@ -44,6 +44,8 @@ public static partial class ResearchAgent
         citations, title, url, queries_used, and source_inventory. Each grounded_facts
         entry is an object with a nonempty statement and a nonempty citations array.
         Do not wrap the results inside a "research" or "lesson" object.
+        Do not produce interpretive perspectives; a separate agent handles them
+        only when the educator enables that feature. Set perspectives to null.
         Output only valid JSON matching the ResearchOutput schema.
         """;
 
@@ -106,6 +108,9 @@ public static partial class ResearchAgent
             progress?.Report("Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
+            // The optional Perspective Analyst owns this field. Never accept speculative
+            // perspectives from the factual Research Librarian stage.
+            output.Perspectives = null;
             output.SourceInventory = RagPrompt.InventoryCitations(session);
             if (output.QueriesUsed.Count == 0)
                 output.QueriesUsed = queries.ToList();
