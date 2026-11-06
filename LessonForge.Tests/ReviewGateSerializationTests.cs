@@ -64,6 +64,49 @@ public sealed class ReviewGateSerializationTests
     }
 
     [Fact]
+    public void PerspectiveReview_IncludedInResearchGatePayloadAndEditableJson()
+    {
+        var research = new ResearchOutput
+        {
+            TopicSummary = "Grounded overview.",
+            GroundedFacts =
+            [
+                new GroundedFact
+                {
+                    Statement = "A cited historical fact.",
+                    Citations = [new CitationRef { Title = "Example", Url = "https://example.org/a" }]
+                }
+            ],
+            SourceInventory =
+            [
+                new CitationRef { Title = "Example", Url = "https://example.org/a" }
+            ],
+            Perspectives = new PerspectiveAnalysisOutput
+            {
+                Status = "insufficient_evidence",
+                Perspectives = [],
+                AreasOfAgreement = [],
+                EvidenceLimitations = "No credible alternative interpretation was established.",
+                DiscussionQuestions = ["What further sources would help?"]
+            }
+        };
+
+        var json = JsonSerializer.Serialize(new { stage = "research", payload = (object)research },
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var doc = JsonDocument.Parse(json);
+        var payload = doc.RootElement.GetProperty("payload");
+        var analysis = payload.GetProperty("perspectives");
+        Assert.Equal("insufficient_evidence", analysis.GetProperty("status").GetString());
+        Assert.Empty(analysis.GetProperty("perspectives").EnumerateArray());
+
+        // The same JSON schema is round-tripped by the existing educator edit/approve gate.
+        var approved = payload.Deserialize<ResearchOutput>(
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal("insufficient_evidence", approved.Perspectives?.Status);
+        Assert.Equal("A cited historical fact.", approved.GroundedFacts[0].Statement);
+    }
+
+    [Fact]
     public void EditedResearchJson_RoundTripsToTheSameFactAndCitations()
     {
         const string edited = """
