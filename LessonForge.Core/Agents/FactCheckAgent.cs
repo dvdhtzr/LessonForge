@@ -61,7 +61,9 @@ public static partial class FactCheckAgent
 
         One finding per root cause. Do not repeat an issue under multiple categories
         or severities. Flag distinct problems separately even when in the same item.
-        Prioritize substantive defects. Return [] when none found.
+        The lesson/source excerpts may be truncated: absence from a shortened excerpt
+        alone does NOT prove a term was never taught. Explain that limitation instead
+        of claiming certain absence. Prioritize substantive defects. Return [] when none found.
         "citation_coverage" is an AI-ESTIMATED 0..1 fraction of reviewed claims
         supported by supplied evidence, NOT an audited metric. Do not invent precision.
         "notes" should give 1-3 neutral sentences including evidence limitations.
