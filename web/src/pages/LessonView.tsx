@@ -55,16 +55,16 @@ export default function LessonView() {
       {audience === 'teacher' && (
         <div className="card">
           <AccuracyReview
-          flags={result.flags || []}
-          coverage={result.citation_coverage ?? 0}
-          notes={result.notes || ''}
-          onNavigate={(location) => {
-            setTab(location.startsWith('Q') ? 'quiz' : 'plan')
-            window.requestAnimationFrame(() => {
-              document.getElementById(`lesson-${location.toLowerCase()}`)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            })
-          }}
+            flags={result.flags || []}
+            coverage={result.citation_coverage ?? 0}
+            notes={result.notes || ''}
+            onNavigate={(location) => {
+              setTab(location.startsWith('Q') ? 'quiz' : 'plan')
+              window.requestAnimationFrame(() => {
+                document.getElementById(`lesson-${location.toLowerCase()}`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              })
+            }}
           />
         </div>
       )}
