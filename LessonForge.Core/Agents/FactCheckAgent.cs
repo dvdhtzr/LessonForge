@@ -38,7 +38,7 @@ public static partial class FactCheckAgent
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient)
-        => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
 
     public sealed partial class FactCheckExecutor(AIAgent agent, RagContext rag) : Executor("FactCheck")
     {
@@ -89,8 +89,8 @@ public static partial class FactCheckAgent
                 Output structured JSON matching VerifiedLessonOutput.
                 """;
 
-            var response = await agent.RunAsync<VerifiedLessonOutput>(prompt, cancellationToken: cancellationToken);
-            var output = response.Result;
+            var output = await StructuredAgentOutput.RunAsync<VerifiedLessonOutput>(
+                agent, prompt, "FactCheck", cancellationToken);
 
             // Guard against a model that drops content: fall back to the approved plan/quiz.
             if (output.Plan is null || output.Plan.Sections.Count == 0)

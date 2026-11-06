@@ -35,7 +35,7 @@ public static partial class QuizGeneratorAgent
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient)
-        => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
 
     public sealed partial class QuizGeneratorExecutor(AIAgent agent, RagContext rag) : Executor("QuizGenerator")
     {
@@ -76,8 +76,8 @@ public static partial class QuizGeneratorAgent
                 explanation grounded in the sources, and citations. Output structured JSON.
                 """;
 
-            var response = await agent.RunAsync<QuizOutput>(prompt, cancellationToken: cancellationToken);
-            var output = response.Result;
+            var output = await StructuredAgentOutput.RunAsync<QuizOutput>(
+                agent, prompt, "QuizGenerator", cancellationToken);
 
             state.Quiz = output;
             state.CurrentStep = 4;

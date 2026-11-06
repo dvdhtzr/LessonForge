@@ -79,6 +79,19 @@ npm run dev
 
 Open http://localhost:5173, enter a topic and age, and generate.
 
+### Reliable structured outputs
+
+All four MAF agents ask Ollama for **JSON mode** and request no separate reasoning
+output on their schema-shaped tasks. Instead of accessing `AgentResponse<T>.Result`
+directly, LessonForge reads the final response text, deserializes the required DTO,
+and rejects empty, invalid or obviously incomplete results with stage-specific
+diagnostics. These checks do not assert that the educational facts are correct;
+the Accuracy Editor and educator review remain necessary.
+
+The change is especially relevant for reasoning-capable Ollama models such as
+`qwen3.8:27b`, whose default thinking output can be separate from the final answer.
+No generated output is silently replaced by a fabricated lesson or quiz.
+
 ### Local inference timeout and research progress
 
 The OpenAI-compatible .NET client defaults to a 100-second network timeout. A local
