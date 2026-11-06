@@ -92,7 +92,16 @@ public static class SourcePermissionGate
              rights.LicenseId != "PG-CATALOG-PD" ||
              rights.PolicyUrl != "https://www.gutenberg.org/policy/robot_access.html"))
             return Deny("Gutenberg rights apply only to official catalog metadata, not ebook text.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog"))
+        if (document.ProviderId == "smithsonian-openaccess-metadata" &&
+            (document.Kind != SourceKind.SmithsonianMetadata ||
+             !uri.Host.Equals("collections.si.edu", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/search/detail/edanmdm:", StringComparison.Ordinal) ||
+             uri.AbsolutePath["/search/detail/".Length..] != document.CanonicalId ||
+             uri.Query.Length > 0 || uri.Fragment.Length > 0 ||
+             rights.LicenseId != "CC0-1.0" ||
+             rights.PolicyUrl != "https://www.si.edu/openaccess/faq"))
+            return Deny("Smithsonian rights apply only to EDAN metadata explicitly marked CC0.");
+        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
