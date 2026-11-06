@@ -78,13 +78,35 @@ public static partial class FactCheckAgent
                 throw new InvalidOperationException(
                     "Accuracy Editor cannot verify claims because no source excerpts were retrieved.");
 
+            var approvedPerspectives = state.Research?.Perspectives;
+            if (state.Request.ExplorePerspectives && approvedPerspectives is null)
+                throw new InvalidOperationException(
+                    "Accuracy Editor is missing the educator-approved perspective analysis.");
+            if (approvedPerspectives is not null)
+            {
+                PerspectiveAnalysisValidator.Validate(
+                    approvedPerspectives, state.Research!.SourceInventory);
+                if (rag.PerspectiveSession is { } additional)
+                {
+                    var perspectiveQueries = approvedPerspectives.Perspectives
+                        .Select(p => p.Name)
+                        .Prepend(state.Request.Topic)
+                        .Take(4);
+                    var additionalEvidence = await RagPrompt.GatherEvidenceAsync(
+                        additional, perspectiveQueries, perQuery: 2, maxSnippets: 3,
+                        maxCharsPerSnippet: 450, ct: cancellationToken);
+                    if (additionalEvidence != "(no sources retrieved)")
+                        evidence += "\n" + additionalEvidence;
+                }
+            }
+
             var prompt = BuildReviewPrompt(plan, quiz, state.Research, evidence);
             var review = await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
                 agent, prompt, "FactCheck", cancellationToken);
 
             // Deliberately do not trust the LLM to reconstruct or modify the approved
             // lesson, quiz, answers or citations. Only audit findings come from the LLM.
-            var output = AssembleVerifiedLesson(plan, quiz, review);
+            var output = AssembleVerifiedLesson(plan, quiz, review, approvedPerspectives);
 
             state.CurrentStep = 5;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
@@ -132,11 +154,19 @@ public static partial class FactCheckAgent
                 $"explanation: {Trim(q.Explanation, 260)}");
         }
 
+        var perspectiveContext = PerspectivePrompt.ForLesson(research?.Perspectives);
+        var perspectiveReview = research?.Perspectives is not null
+            ? "Check that differing perspectives are represented fairly in the lesson, supported by the cited evidence and weighted appropriately. Flag any invented, omitted or misleading interpretation. Do not insist on artificial balance."
+            : "";
+
         return $"""
             Review the EXISTING educator-approved lesson and quiz. Do not rewrite either.
 
             MATERIAL TO CHECK:
             {context}
+
+            {perspectiveContext}
+            {perspectiveReview}
 
             RETRIEVED SOURCE EVIDENCE (the only independent evidence for verification):
             {evidence}
@@ -153,7 +183,8 @@ public static partial class FactCheckAgent
     /// it cannot change lesson sections, the answer key or their citations.
     /// </summary>
     public static VerifiedLessonOutput AssembleVerifiedLesson(
-        LessonPlanOutput approvedPlan, QuizOutput quiz, FactCheckReviewOutput review)
+        LessonPlanOutput approvedPlan, QuizOutput quiz, FactCheckReviewOutput review,
+        PerspectiveAnalysisOutput? perspectives = null)
     {
         ArgumentNullException.ThrowIfNull(approvedPlan);
         ArgumentNullException.ThrowIfNull(quiz);
@@ -175,6 +206,7 @@ public static partial class FactCheckAgent
         {
             Plan = approvedPlan,
             Quiz = quiz,
+            Perspectives = perspectives,
             Flags = review.Flags,
             CitationCoverage = review.CitationCoverage,
             Notes = review.Notes
