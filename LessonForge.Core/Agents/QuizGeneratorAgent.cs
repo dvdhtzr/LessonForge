@@ -26,16 +26,28 @@ public static partial class QuizGeneratorAgent
         - Exactly one option is correct; set correct_index to its zero-based position.
         - Distractors are plausible and similar in length/style — no joke options, no "all of the
           above" or "none of the above", no trick wording.
-        - Each question maps to the lesson content and is answerable from it.
+        - Each question maps to the approved lesson content and is answerable from it.
         - Scale difficulty to the audience age; vary across recall, understanding, and application.
-        - Every question includes an explanation of why the correct answer is right, grounded in the
-          sources, with citations drawn from the lesson/research sources.
+        - Explanations must be concise, accurate, and grounded in the provided lesson.
+        - Only cite supplied sources. Do not invent URLs or facts.
 
-        Output only valid JSON matching the QuizOutput schema.
+        Return one JSON object with exactly one top-level property, "questions".
+        "questions" MUST be a nonempty array of question objects. Each question has:
+        - "stem": a nonempty question string
+        - "options": an array of answer strings in the requested count
+        - "correct_index": a zero-based integer pointing at the correct option
+        - "explanation": a short factual explanation supporting the correct answer
+        - "citations": a nonempty array of objects with "title" and "url", copied from
+          AVAILABLE SOURCES in the prompt (one strong citation per question is enough).
+
+        Do not use alternative top-level keys such as "quiz", "assessment", "items",
+        or "multiple_choice_questions". Finish the entire JSON object. No markdown.
+        Keep each question and explanation short to stay within the model's output budget.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
+        => StructuredAgentOutput.CreateSchemaAgent<QuizOutput>(
+            chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class QuizGeneratorExecutor(AIAgent agent, RagContext rag) : Executor("QuizGenerator")
     {
@@ -46,8 +58,20 @@ public static partial class QuizGeneratorAgent
             var state = await context.ReadStateAsync<LessonWorkflowState>(
                 LessonStateShared.Key, scopeName: LessonStateShared.Scope) ?? new LessonWorkflowState();
             var request = state.Request;
+            if (string.IsNullOrWhiteSpace(request.Topic))
+                throw new InvalidOperationException(
+                    "QuizGenerator cannot find the original lesson request in workflow state.");
+            if (plan.Sections is not { Count: > 0 })
+                throw new InvalidOperationException(
+                    "QuizGenerator received no approved lesson sections.");
+
             var cfg = request.QuizConfig;
-            var difficulty = cfg.Difficulty.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            if (cfg.QuestionCount is < 1 or > 30 || cfg.OptionCount is < 2 or > 6)
+                throw new InvalidOperationException(
+                    "QuizGenerator requires a question count between 1 and 30 and " +
+                    "an option count between 2 and 6.");
+
+            var difficulty = string.Equals(cfg.Difficulty, "auto", StringComparison.OrdinalIgnoreCase)
                 ? $"scaled to age {request.AudienceAge}"
                 : cfg.Difficulty;
 
@@ -72,18 +96,50 @@ public static partial class QuizGeneratorAgent
                 {citationList}
 
                 Produce exactly {cfg.QuestionCount} questions, each with exactly {cfg.OptionCount}
-                options. Difficulty: {difficulty}. Each question needs a correct_index, an
-                explanation grounded in the sources, and citations. Output structured JSON.
+                options. Difficulty: {difficulty}.
+
+                Return a single complete JSON object with a top-level "questions" array.
+                Each array item must have exactly these fields: "stem", "options",
+                "correct_index", "explanation", and "citations". Each citation is an
+                object containing "title" and "url" copied from AVAILABLE SOURCES.
+                Every question requires one concise, supporting citation; never invent
+                source URLs. Keep stems and explanations brief. No extra JSON wrappers.
                 """;
 
             var output = await StructuredAgentOutput.RunAsync<QuizOutput>(
                 agent, prompt, "QuizGenerator", cancellationToken);
+            ValidateCounts(output, cfg);
 
             state.Quiz = output;
             state.CurrentStep = 4;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
 
             return output;
+        }
+    }
+
+    /// <summary>
+    /// The requested question and answer-option counts are runtime constraints and cannot
+    /// be captured by the static QuizOutput JSON schema. Reject short or malformed quizzes
+    /// rather than silently changing the educator's requested assessment.
+    /// </summary>
+    public static void ValidateCounts(QuizOutput quiz, QuizConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(quiz);
+        ArgumentNullException.ThrowIfNull(config);
+
+        if (quiz.Questions is null || quiz.Questions.Count != config.QuestionCount)
+            throw new InvalidOperationException(
+                $"QuizGenerator returned {quiz.Questions?.Count ?? 0} questions, " +
+                $"but {config.QuestionCount} were requested.");
+
+        for (var i = 0; i < quiz.Questions.Count; i++)
+        {
+            var question = quiz.Questions[i];
+            if (question is null || question.Options is null || question.Options.Count != config.OptionCount)
+                throw new InvalidOperationException(
+                    $"QuizGenerator question {i + 1} has {question?.Options?.Count ?? 0} options, " +
+                    $"but {config.OptionCount} were requested.");
         }
     }
 }
