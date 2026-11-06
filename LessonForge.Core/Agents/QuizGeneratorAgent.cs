@@ -2,6 +2,7 @@
 
 using System.Text;
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using LessonForge.Core.Workflow;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
@@ -84,7 +85,13 @@ public static partial class QuizGeneratorAgent
             foreach (var s in plan.Sections)
                 sb.AppendLine($" ## {s.Title}\n{s.Body}");
 
+            var knownSources = rag.Session is { } primarySession
+                ? primarySession.Citations.Concat(
+                    rag.PerspectiveSession?.Citations ?? []).ToList()
+                : throw new InvalidOperationException(
+                    "QuizGenerator cannot verify citations without the retrieval index.");
             var citations = plan.Citations.Count > 0 ? plan.Citations : state.Research?.SourceInventory ?? new();
+            SourceCitationValidator.RequireRetrieved(citations, knownSources, "Educator-approved lesson");
             var citationList = string.Join("\n", citations.Select(c => $" - {c.Title}: {c.Url}"));
             var approvedPerspectives = state.Research?.Perspectives;
             if (request.ExplorePerspectives && approvedPerspectives is null)
@@ -122,6 +129,9 @@ public static partial class QuizGeneratorAgent
             var output = await StructuredAgentOutput.RunAsync<QuizOutput>(
                 agent, prompt, "QuizGenerator", cancellationToken);
             ValidateCounts(output, cfg);
+            foreach (var question in output.Questions)
+                SourceCitationValidator.RequireRetrieved(
+                    question.Citations, knownSources, "Assessment question");
 
             // The plan arriving through the RequestPort is the educator-approved
             // version, potentially edited. The final Accuracy Editor must see it.
