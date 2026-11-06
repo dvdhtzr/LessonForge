@@ -11,6 +11,7 @@ public sealed class ClientFactoryTests
         var options = new LlmOptions();
 
         Assert.Equal(600, options.NetworkTimeoutSeconds);
+        Assert.Equal(8192, options.MaxOutputTokens);
         Assert.Equal(0, options.MaxRetries);
 
         // Creating the client does not contact Ollama; verifies the configuration is accepted.
@@ -28,6 +29,16 @@ public sealed class ClientFactoryTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new ClientFactory(options));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void InvalidOutputTokenBudget_IsRejected(int tokens)
+    {
+        var options = new LlmOptions { MaxOutputTokens = tokens };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ClientFactory(options));
+    }
+
     [Fact]
     public void NegativeRetryCount_IsRejected()
     {
@@ -39,7 +50,7 @@ public sealed class ClientFactoryTests
     [Fact]
     public void ExplicitTimeoutAndRetrySettings_AreAccepted()
     {
-        var options = new LlmOptions { NetworkTimeoutSeconds = 900, MaxRetries = 1 };
+        var options = new LlmOptions { NetworkTimeoutSeconds = 900, MaxRetries = 1, MaxOutputTokens = 16384 };
 
         var factory = new ClientFactory(options);
         Assert.Same(options, factory.Options);
