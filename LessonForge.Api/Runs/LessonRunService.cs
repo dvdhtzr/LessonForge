@@ -80,7 +80,13 @@ public sealed class LessonRunService(
             await WriteAsync(session, "run", new { runId = session.RunId, interactive });
 
             var retrieval = LessonWorkflow.CreateRetrievalService(clients);
-            var (workflow, _) = LessonWorkflow.Build(clients, retrieval, interactive);
+            var progress = new Progress<string>(message =>
+            {
+                logger.LogInformation("Lesson run {RunId}: research: {Message}", session.RunId, message);
+                var payload = JsonSerializer.Serialize(new { stage = "Research", message }, s_json);
+                session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
+            });
+            var (workflow, _) = LessonWorkflow.Build(clients, retrieval, interactive, progress);
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 
