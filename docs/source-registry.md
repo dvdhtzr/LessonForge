@@ -77,7 +77,7 @@ uses, especially output redistribution and commercial publication.
 | USGS Earthquake Hazards GeoJSON | Official 4.5+ weekly feed | Enabled for earthquake topics only | USGS-curated structured observations; no linked event products or media |
 | Smithsonian Open Access | Official API (key) or official JSON exports | Disabled | Check each asset's CC0 designation, third-party rights, and API conditions |
 | Library of Congress — *A Century of Lawmaking for a New Nation* | Official JSON API | Enabled for U.S. constitutional and congressional-history topics | Only explicitly identified records in the public-domain collection; no OCR, book contents, linked assets or conflicting item rights |
-| Project Gutenberg | Official catalog and approved mirror/harvest paths | Disabled | U.S. vs other countries' copyright, translations and editions, robot policy/trademark |
+| Project Gutenberg official CSV catalog | [Weekly machine-readable CSV](https://www.gutenberg.org/ebooks/offline_catalogs.html), locally cached | Enabled for bibliographic discovery | Only catalog metadata is public domain; ebook full texts are NOT downloaded, nor presumed unrestricted |
 | Saylor University | Original course materials and links | Disabled | Original CC BY content differs from third-party sources and exam banks |
 
 References for policy review:
@@ -113,6 +113,16 @@ References for policy review:
   never OCR, underlying primary documents, images or arbitrary item links.
   Such descriptions support facts about a document's existence/metadata,
   **not historical assertions drawn from its unseen full text**.
+- **Project Gutenberg:** once-weekly local download of the **official**
+  `pg_catalog.csv` machine-readable catalog, bounded to 35 MB, with
+  HTTPS effective-URL verification, a seven-day local cache, a CSV parser
+  supporting quoted commas/newlines, topic scoring and canonical ebook
+  landing-page citations. Only English-language text catalog entries are
+  considered; output text is explicitly labelled **bibliographic metadata**.
+  No ebook HTML, TXT, PDF, images or secondary mirror content is fetched.
+  A catalog entry is not evidence of what the book says or a blanket
+  copyright review. The ebook body remains excluded until independent
+  jurisdiction/edition and approved-harvesting checks.
 - **Provenance:** trusted records include source provider ID, canonical document
   ID/URL, retrieval timestamp, license/scope/policy, and SHA-256 of the text
   actually indexed. Chunks copy source identity and content hash.
@@ -171,3 +181,20 @@ committed, but **its local .NET verification and live API/Ollama integration
 are not yet confirmed**. The LoC API could return zero records under the
 strict collection membership/rights filters; inspect live evidence inventory
 before treating this provider as accepted.
+
+## Project Gutenberg provider acceptance
+
+The adapter uses the [official offline catalog CSV](https://www.gutenberg.org/ebooks/offline_catalogs.html)
+and [robot access guidance](https://www.gutenberg.org/policy/robot_access.html).
+Check Windows `scripts/check.ps1` and then run a
+**Protestant Reformation** or **Pride and Prejudice** lesson with
+perspective mode off. The retrieved inventory should include
+`gutenberg-catalog` *only if* the official feed is available and matches
+the query; inspect the teacher JSON `source_records`. Verify that facts
+about the contents of the book are never inferred solely from its metadata.
+A Gutenberg outage must not break rights-eligible Wikipedia research.
+
+This provider requires no API key. The large initial catalog download may
+take time, but subsequent lessons use the local cache for seven days.
+Code and offline tests are committed; no live end-to-end verification is
+claimed here.

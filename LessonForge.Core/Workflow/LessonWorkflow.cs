@@ -113,7 +113,8 @@ public static class LessonWorkflow
         var registry = new SourceRegistry(
         [
             new UsgsEarthquakeProvider(CreateHttpClient()),
-            new LocLawmakingCatalogProvider(CreateHttpClient())
+            new LocLawmakingCatalogProvider(CreateHttpClient()),
+            new GutenbergCatalogProvider(CreateHttpClient())
         ]);
         return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
     }

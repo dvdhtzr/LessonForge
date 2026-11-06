@@ -29,6 +29,23 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
 | Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
 
+### Project Gutenberg — key-free catalog integration
+
+The Research Librarian can discover books and source bibliographies from the
+[official Project Gutenberg weekly CSV catalog](https://www.gutenberg.org/ebooks/offline_catalogs.html),
+using one bounded download cached in the user's local application-data directory
+for seven days. It does not scrape the public website.
+
+**Important scope:** a Gutenberg result is **bibliographic metadata** (ebook
+number, title, listed author, subjects and Project Gutenberg release date).
+It is *not* the text of the book, proof of the work's contents, a statement
+about the original publication date or a copyright determination for any
+individual edition or translation. The separate rights gate admits this
+public-domain catalog metadata, not arbitrary ebook body content. If book text
+is needed, we must first design a reviewed, mirror-compatible, item-level
+copyright route. Project Gutenberg's trademark and territorial restrictions
+may still apply to downstream publishing.
+
 ### Source Registry (initial rollout)
 
 - **Reviewed paths:** Wikipedia Action API article plaintext (CC BY-SA 4.0 with
@@ -49,9 +66,9 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
   and JSON exports contain this inventory. Source URLs produced by agents must
   match the material actually retrieved in the run.
-- **Candidates requiring review:** Smithsonian Open Access, Project Gutenberg,
-  Saylor University, and all unreviewed Library of Congress collections remain
-  disabled; there is no bulk ingestion or API-key requirement.
+- **Candidates requiring review:** Smithsonian Open Access, Saylor University,
+  all unreviewed Library of Congress collections, and Gutenberg **ebook text**
+  remain disabled until the relevant rights and access pathways are verified.
 - **Limits:** USGS provides recent earthquake examples, while LoC catalog metadata
   documents *the existence and description* of archival records—not their full
   primary-source text. Neither should be presented as direct support for broad

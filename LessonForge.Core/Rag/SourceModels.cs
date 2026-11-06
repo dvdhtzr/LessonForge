@@ -15,7 +15,10 @@ public enum SourceKind
     UsgsEarthquake,
 
     /// <summary>Public-domain congressional history catalog descriptions, not primary document text.</summary>
-    LocCongressionalCatalog
+    LocCongressionalCatalog,
+
+    /// <summary>Public-domain Project Gutenberg catalog metadata, never ebook text.</summary>
+    GutenbergCatalog
 }
 
 /// <summary>A whole retrieved document before it is split into chunks.</summary>

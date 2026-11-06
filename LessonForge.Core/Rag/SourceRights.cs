@@ -81,7 +81,18 @@ public static class SourcePermissionGate
              rights.PolicyUrl !=
                 "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/"))
             return Deny("LoC decision is restricted to approved public-domain congressional catalog records.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking"))
+        if (document.ProviderId == "gutenberg-catalog" &&
+            (document.Kind != SourceKind.GutenbergCatalog ||
+             !uri.Host.Equals("www.gutenberg.org", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/ebooks/", StringComparison.Ordinal) ||
+             !int.TryParse(uri.AbsolutePath["/ebooks/".Length..], out var bookId) ||
+             bookId is < 1 or > 9_999_999 ||
+             document.CanonicalId != bookId.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+             uri.Query.Length > 0 || uri.Fragment.Length > 0 ||
+             rights.LicenseId != "PG-CATALOG-PD" ||
+             rights.PolicyUrl != "https://www.gutenberg.org/policy/robot_access.html"))
+            return Deny("Gutenberg rights apply only to official catalog metadata, not ebook text.");
+        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
@@ -117,6 +128,21 @@ public static class ReviewedSourceRights
         // Derivative-work and share-alike obligations require additional review.
         MayReproduceExcerpts = false,
         MayRedistribute = false,
+        AutomatedAccessPermitted = true
+    };
+
+    public static SourceRights GutenbergCatalogMetadata => new()
+    {
+        LicenseId = "PG-CATALOG-PD",
+        PolicyUrl = "https://www.gutenberg.org/policy/robot_access.html",
+        ReviewedOn = new DateOnly(2026, 11, 6),
+        Scope = "Only the official Project Gutenberg pg_catalog.csv.gz machine-readable catalog metadata; no ebook text, third-party images, copyright-restricted works or use of the trademark as product branding",
+        Attribution = "Project Gutenberg catalog; original ebook landing page and listed author",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
+        MayReproduceExcerpts = true,
+        MayRedistribute = true,
         AutomatedAccessPermitted = true
     };
 

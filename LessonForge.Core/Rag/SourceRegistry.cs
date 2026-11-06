@@ -36,8 +36,8 @@ public sealed class SourceRegistry
         if (_adapters.Any(a => a is null) ||
             _adapters.Select(a => a.Id).Distinct(StringComparer.Ordinal).Count() != _adapters.Count)
             throw new ArgumentException("Source adapters must be nonnull with unique IDs.", nameof(adapters));
-        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking")))
-            throw new ArgumentException("Only explicitly reviewed USGS and LoC adapters are enabled in this release.", nameof(adapters));
+        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog")))
+            throw new ArgumentException("Only explicitly reviewed USGS, LoC and Gutenberg catalog adapters are enabled.", nameof(adapters));
 
         Sources =
         [
@@ -59,10 +59,11 @@ public sealed class SourceRegistry
                 "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/",
                 _adapters.Any(a => a.Id == "loc-century-of-lawmaking"),
                 "Public-domain collection catalog descriptions only; no OCR, images, unreviewed collections or conflicting item rights"),
-            new("gutenberg", "Project Gutenberg", "https://www.gutenberg.org",
-                "Official catalog / mirrors", "Books and primary texts",
-                "https://www.gutenberg.org/policy/terms_of_use.html", false,
-                "Country, edition and automated-access review required"),
+            new("gutenberg-catalog", "Project Gutenberg — Official Catalog", "https://www.gutenberg.org",
+                "Official weekly CSV.gz bulk catalog; locally cached", "Literature, historical books, philosophy and primary-source bibliographies",
+                "https://www.gutenberg.org/policy/robot_access.html",
+                _adapters.Any(a => a.Id == "gutenberg-catalog"),
+                "Public-domain CATALOG METADATA only; ebook text requires separate item rights and mirror-access review"),
             new("saylor", "Saylor University", "https://www.saylor.org",
                 "Course metadata / original materials", "University-level education",
                 "https://www.saylor.org/OpenContent", false,
