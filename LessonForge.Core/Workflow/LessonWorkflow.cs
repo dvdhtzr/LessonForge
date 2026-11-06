@@ -110,7 +110,9 @@ public static class LessonWorkflow
         var wikipedia = new WikipediaClient(CreateHttpClient());
         var fetcher = new SourceFetcher(CreateHttpClient());
         var embeddings = clients.CreateEmbeddingGenerator();
-        return new RetrievalService(wikipedia, fetcher, embeddings, options);
+        var registry = new SourceRegistry(
+            [new UsgsEarthquakeProvider(CreateHttpClient())]);
+        return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
     }
 
     private static HttpClient CreateHttpClient()
