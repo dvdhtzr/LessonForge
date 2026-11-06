@@ -47,7 +47,11 @@ public static partial class PerspectiveAnalystAgent
         If the evidence is too weak or narrow to decide, use "insufficient_evidence"
         with perspectives [] — never assume a debate exists.
         Use facts as facts, compare interpretations fairly, and keep the entire
-        response short enough to complete its JSON output.
+        response short enough to complete its JSON output. Prefer exactly TWO
+        fully evidenced perspectives over a longer or incomplete list. Every
+        perspective requires all five fields, including a nonempty limitations
+        statement and a real citation. If two complete supported views cannot
+        be established, report insufficient_evidence with perspectives=[].
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
@@ -136,11 +140,31 @@ public static partial class PerspectiveAnalystAgent
                 shown in the retrieved source excerpts. If sources do not support
                 an interpretation, exclude it and state the limitation.
                 Return the complete JSON object for PerspectiveAnalysisOutput.
+
+                CRITICAL COMPLETENESS AND EVIDENCE RULES:
+                {PerspectiveAnalysisRecovery.OutputDiscipline}
                 """;
 
-            var result = await StructuredAgentOutput.RunAsync<PerspectiveAnalysisOutput>(
-                agent, prompt, "PerspectiveAnalysis", cancellationToken);
-            PerspectiveAnalysisValidator.Validate(result, allowed);
+            var result = await PerspectiveAnalysisRecovery.RunAsync(
+                (attempt, token) =>
+                {
+                    var scopedPrompt = attempt == 1
+                        ? prompt
+                        : prompt + """
+
+                            
+                            RECOVERY ATTEMPT: The previous comparison was rejected by
+                            deterministic completeness or citation checks.
+                            Produce a NEW, shorter complete response from the same
+                            SOURCE excerpts. Do not repeat an unsupported viewpoint,
+                            invent a limitation or supply placeholder citations.
+                            Return exactly two substantiated complete viewpoints,
+                            OR explicitly mark insufficient_evidence with [].
+                            """;
+                    return StructuredAgentOutput.RunAsync<PerspectiveAnalysisOutput>(
+                        agent, scopedPrompt, "PerspectiveAnalysis", token);
+                },
+                allowed, cancellationToken);
 
             // Attach the additional *retrieved* source inventory. A later educator
             // edit cannot cite material absent from the indexed source set.
