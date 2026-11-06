@@ -207,7 +207,9 @@ public static class LessonExporter
                             for (var o = 0; o < q.Options.Count; o++)
                             {
                                 var correct = audience == Audience.Teacher && o == q.CorrectIndex;
-                                var text = $"   {(char)('A' + o)}. {q.Options[o]}" + (correct ? "  ✓" : "");
+                                // QuestPDF's bundled Lato font lacks U+2713 (checkmark). Use a
+                                // readable ASCII label instead of relying on machine-specific fonts.
+                                var text = $"   {(char)('A' + o)}. {q.Options[o]}" + (correct ? "  (correct answer)" : "");
                                 var item = c.Item().Text(text);
                                 if (correct) item.Bold();
                             }
