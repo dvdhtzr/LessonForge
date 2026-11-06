@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.LESSONFORGE_API ?? 'http://localhost:5174',
+        target: 'http://localhost:5174',
         changeOrigin: true,
       },
     },
