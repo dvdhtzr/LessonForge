@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 
 namespace LessonForge.Core.Agents;
 
@@ -56,16 +57,22 @@ public static class ResearchSummaryRecovery
         ResearchDraftOutput draft,
         Func<CancellationToken, Task<string>> regenerateSummary,
         IProgress<string>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? expectedNamedSubject = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentNullException.ThrowIfNull(regenerateSummary);
 
-        if (LooksComplete(draft.TopicSummary))
+        var complete = LooksComplete(draft.TopicSummary);
+        var correctSubject = string.IsNullOrWhiteSpace(expectedNamedSubject) ||
+            TopicIdentity.MentionsSubject(draft.TopicSummary, expectedNamedSubject);
+        if (complete && correctSubject)
             return draft;
 
         ct.ThrowIfCancellationRequested();
-        progress?.Report("Research summary appears incomplete; regenerating a short evidence-grounded summary…");
+        progress?.Report(!complete
+            ? "Research summary appears incomplete; regenerating a short evidence-grounded summary…"
+            : "Research summary does not identify the requested subject; regenerating from the verified evidence…");
 
         var replacement = await regenerateSummary(ct);
         ct.ThrowIfCancellationRequested();
@@ -76,8 +83,14 @@ public static class ResearchSummaryRecovery
                 "The incomplete report was not sent for educator review. " +
                 "Check the local model's output/context limits and try again.");
 
+        if (!string.IsNullOrWhiteSpace(expectedNamedSubject) &&
+            !TopicIdentity.MentionsSubject(replacement, expectedNamedSubject))
+            throw new InvalidOperationException(
+                "Research summary still did not identify the requested named subject after one targeted regeneration. " +
+                "The report was rejected rather than replacing it with a similarly named person or topic.");
+
         draft.TopicSummary = replacement.Trim();
-        progress?.Report("Research summary completeness check passed.");
+        progress?.Report("Research summary completeness and subject-identity checks passed.");
         return draft;
     }
 }
