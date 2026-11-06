@@ -106,7 +106,7 @@ public static partial class PerspectiveAnalystAgent
 
             var supplementaryCitations = additionalSession is not null
                 ? RagPrompt.InventoryCitations(additionalSession)
-                : [];
+                : new List<CitationRef>();
             var allowed = research.SourceInventory
                 .Concat(supplementaryCitations)
                 .Where(c => !string.IsNullOrWhiteSpace(c.Url))
