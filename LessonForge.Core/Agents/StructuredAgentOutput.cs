@@ -127,6 +127,23 @@ public static class StructuredAgentOutput
             }
         }
 
+        // The review DTO initializes flags to [] and coverage to zero. Both are
+        // potentially valid values, so additionally demand explicit model keys.
+        if (value is FactCheckReviewOutput)
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            foreach (var field in new[] { "flags", "citation_coverage", "notes" })
+            {
+                if (root.ValueKind != JsonValueKind.Object ||
+                    !root.TryGetProperty(field, out _))
+                {
+                    if (!missing.Contains(field))
+                        missing.Add(field);
+                }
+            }
+        }
+
         if (missing.Count > 0)
         {
             // With System.Text.Json's default-initialized DTO properties, both a missing
@@ -247,6 +264,32 @@ public static class StructuredAgentOutput
                             missing.Add($"questions[{index}].citations");
                     }
                 }
+                break;
+
+            case FactCheckReviewOutput review:
+                if (review.Flags is null)
+                {
+                    missing.Add("flags");
+                }
+                else
+                {
+                    for (var index = 0; index < review.Flags.Count; index++)
+                    {
+                        var flag = review.Flags[index];
+                        if (flag is null || string.IsNullOrWhiteSpace(flag.Claim))
+                            missing.Add($"flags[{index}].claim");
+                        if (flag is null || string.IsNullOrWhiteSpace(flag.Issue))
+                            missing.Add($"flags[{index}].issue");
+                        if (flag is null || flag.Severity is not ("High" or "Medium" or "Low"))
+                            missing.Add($"flags[{index}].severity");
+                    }
+                }
+                if (double.IsNaN(review.CitationCoverage) ||
+                    double.IsInfinity(review.CitationCoverage) ||
+                    review.CitationCoverage is < 0 or > 1)
+                    missing.Add("citation_coverage");
+                if (string.IsNullOrWhiteSpace(review.Notes))
+                    missing.Add("notes");
                 break;
 
             case VerifiedLessonOutput verified:
