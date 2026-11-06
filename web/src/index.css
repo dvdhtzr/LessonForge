@@ -116,6 +116,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .backdrop { position: fixed; inset: 0; background: rgba(32, 30, 24, .5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
 .modal { background: var(--surface); border-radius: 16px; max-width: 660px; width: 100%; max-height: 88vh; overflow: auto; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
 .modal h2 { margin-top: 0; }
+.review-modal { max-width: 760px; }
+.review-summary { margin-top: 18px; }
+.review-summary h3 { font-size: 17px; margin: 22px 0 10px; }
+.review-facts { padding-left: 24px; margin: 8px 0 18px; }
+.review-facts > li { margin: 0 0 16px; padding-left: 4px; }
+.review-citations { display: block; margin-top: 5px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.review-inventory { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; }
+.review-inventory summary { cursor: pointer; font-weight: 600; color: var(--accent-dark); }
+.review-inventory ul { padding-left: 22px; }
+.review-inventory li { margin: 8px 0; }
+.review-json { min-height: 340px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
 pre.payload { background: #f6f4ec; border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; max-height: 320px; }
 
 /* Tabs */
