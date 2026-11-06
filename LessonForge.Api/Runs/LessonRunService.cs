@@ -167,15 +167,16 @@ public sealed class LessonRunService(
         if (request.TryGetDataAs<ResearchOutput>(out var research))
         {
             stage = "research";
-            payload = research!;
-            var factCount = research!.GroundedFacts.Count;
-            var statementCount = research.GroundedFacts.Count(fact => !string.IsNullOrWhiteSpace(fact.Statement));
-            var citedCount = research.GroundedFacts.Count(fact => fact.Citations is { Count: > 0 });
+            var approvedResearch = research!;
+            payload = approvedResearch;
+            var factCount = approvedResearch.GroundedFacts.Count;
+            var statementCount = approvedResearch.GroundedFacts.Count(fact => !string.IsNullOrWhiteSpace(fact.Statement));
+            var citedCount = approvedResearch.GroundedFacts.Count(fact => fact.Citations is { Count: > 0 });
             logger.LogInformation(
                 "Lesson run {RunId}: research approval payload has {FactCount} facts, {StatementCount} statements, " +
                 "{CitedCount} facts with citations, and {SourceCount} indexed sources",
-                session.RunId, factCount, statementCount, citedCount, research.SourceInventory.Count);
-            approve = edited => request.CreateResponse(Deserialize(edited, research));
+                session.RunId, factCount, statementCount, citedCount, approvedResearch.SourceInventory.Count);
+            approve = edited => request.CreateResponse(Deserialize(edited, approvedResearch));
         }
         else if (request.TryGetDataAs<LessonPlanOutput>(out var plan))
         {
