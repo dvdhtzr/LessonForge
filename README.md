@@ -25,7 +25,7 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Lesson Planner | Curriculum Designer | Builds an age-calibrated plan: objectives, sections, activities, vocabulary |
 | *gate* | — | Educator reviews/edits/approves the plan |
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
-| Fact-Check | Accuracy Editor | Verifies claims/answers against sources, repairs citations, flags unsupported statements |
+| Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
 
 ### Key design decisions
 
@@ -138,20 +138,25 @@ sources, but local LLM inference does not require a paid API.
 
 ### Reliable structured outputs
 
-The Research Librarian, Curriculum Designer, and Assessment Writer explicitly
-request **JSON schema** output from Ollama. The Accuracy Editor still requests
-JSON mode. All four agents disable separate reasoning output for structured
-tasks. Rather than accessing `AgentResponse<T>.Result` directly, LessonForge
+All four agents explicitly request **JSON schema** output from Ollama,
+and disable separate reasoning output for structured tasks. Rather than accessing `AgentResponse<T>.Result` directly, LessonForge
 reads the final response, deserializes the expected DTO, and rejects missing,
 empty or otherwise incomplete results with stage-specific diagnostics.
 
 The Assessment Writer validates every question's stem, options, correct-answer
-index, explanation, and supporting citations. It also enforces the educator's
-requested number of questions and answer choices, even when a model returns
-an otherwise valid JSON object. Missing `questions` and explicit empty arrays
-produce distinct diagnostics without logging generated source content. These
-checks enforce structure, not factual correctness; the Accuracy Editor and
-educator review remain necessary.
+index, explanation, and supporting citations, and enforces the educator's
+requested numbers of questions and answer choices.
+
+The Accuracy Editor now returns only a **compact verification review**:
+`flags`, `citation_coverage` and `notes`. The application assembles the
+final result using the educator-approved plan and generated quiz, unchanged.
+This prevents a local model from exhaustively repeating (or accidentally
+changing) the entire lesson and answer key just to report its findings.
+Source excerpts are capped for the final review call; insufficient evidence
+must be called out rather than treated as a successful independent fact check.
+Coverage is **AI-estimated**, not a guarantee of factual accuracy. These
+checks enforce structure, not factual correctness; educators should review the
+finished materials and flagged issues.
 
 This avoids depending on how a model exposes its internal reasoning or final
 answer. The committed Gemma 4 configuration has already reached the research
