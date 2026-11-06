@@ -128,7 +128,9 @@ public sealed class SourcePermissionAndRegistryTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await registry.RetrieveEligibleAsync("earthquakes", ct: cts.Token));
+        {
+            await registry.RetrieveEligibleAsync("earthquakes", ct: cts.Token);
+        });
     }
 
     private sealed class FakeProvider(string id, IReadOnlyList<SourceDocument> result)
