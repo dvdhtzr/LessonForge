@@ -31,7 +31,7 @@ public static class LessonWorkflow
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
 
-        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat), retrieval, rag);
+        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat), retrieval, rag, researchProgress);
         var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat), rag);
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat), rag);
         var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat), rag);
