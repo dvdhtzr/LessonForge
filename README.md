@@ -2,7 +2,8 @@
 
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
 a citation-backed multiple-choice quiz**, grounded in rights-eligible sources retrieved
-through a local RAG index (Wikipedia articles and, for earthquake topics, official USGS data).
+through a local RAG index (Wikipedia articles, official USGS earthquake observations,
+and selected public-domain Library of Congress congressional-history catalog records).
 
 It is a standalone .NET 10 application: a multi-agent crew (built on the Microsoft Agent Framework)
 runs against a local Ollama server, behind a C# web API, with a React frontend and an in-process
@@ -20,7 +21,7 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 
 | Stage | Persona | Does |
 |-------|---------|------|
-| Research | Research Librarian | Retrieves Wikipedia articles and topic-relevant USGS earthquake events, rejects material lacking documented AI-use permission, then chunks/embeds rights-eligible sources in the per-run index |
+| Research | Research Librarian | Retrieves Wikipedia articles, relevant USGS earthquake observations and scoped Library of Congress congressional-history catalog metadata; rights-checks and embeds eligible evidence in a per-run index |
 | *optional* | **Perspective Analyst** | When enabled, retrieves additional sources, identifies substantiated differing interpretations, or explicitly reports no substantive disagreement / insufficient evidence |
 | *gate* | — | Educator reviews/edits/approves grounded facts **and**, when enabled, the perspective analysis |
 | Lesson Planner | Curriculum Designer | Builds an age-calibrated plan: objectives, sections, activities, vocabulary |
@@ -31,9 +32,10 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 ### Source Registry (initial rollout)
 
 - **Reviewed paths:** Wikipedia Action API article plaintext (CC BY-SA 4.0 with
-  attribution and ShareAlike considerations), and USGS's official 4.5+ earthquake
-  GeoJSON feed (limited to structured event observations, not embedded media).
-  USGS is only called when a topic mentions earthquakes or seismology.
+  attribution and ShareAlike considerations), USGS's official 4.5+ earthquake
+  GeoJSON feed (structured event observations only), and the Library of Congress
+  *A Century of Lawmaking for a New Nation* JSON catalog descriptions (1774–1875,
+  public domain). Providers are only queried for relevant topics.
 - **Fail-closed rights gate:** source content enters embeddings/model prompts only
   when a trusted adapter records the acquisition scope, license, policy URL,
   review date and explicit automated-retrieval/retention/AI-processing permission.
@@ -47,11 +49,13 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
   and JSON exports contain this inventory. Source URLs produced by agents must
   match the material actually retrieved in the run.
-- **Candidates requiring review:** Smithsonian Open Access, Library of Congress,
-  Project Gutenberg and Saylor University remain disabled; there is no bulk
-  ingestion or API-key requirement.
-- **Limits:** the USGS pilot provides recent earthquake examples, not a
-  replacement for historical context or scientific instruction. Citation URL
+- **Candidates requiring review:** Smithsonian Open Access, Project Gutenberg,
+  Saylor University, and all unreviewed Library of Congress collections remain
+  disabled; there is no bulk ingestion or API-key requirement.
+- **Limits:** USGS provides recent earthquake examples, while LoC catalog metadata
+  documents *the existence and description* of archival records—not their full
+  primary-source text. Neither should be presented as direct support for broad
+  historical or scientific conclusions. Citation URL
   matching checks provenance, not passage-level support. Licensing notices and
   downstream derivative-work obligations require further evaluation before
   relying on the system for commercial publication.
