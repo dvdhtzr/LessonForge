@@ -94,21 +94,6 @@ public static partial class FactCheckAgent
                 throw new InvalidOperationException(
                     "Accuracy Editor cannot verify claims because the source retrieval index is missing.");
 
-            // Bound input context for local Ollama. The old implementation sent long
-            // sections, every quiz question, up to 20 large RAG snippets, and asked the
-            // model to regenerate all of that as a single JSON output.
-            var queries = plan.LearningObjectives
-                .Concat(quiz.Questions.Select(q => q.Stem))
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Take(12);
-
-            var evidence = await RagPrompt.GatherEvidenceAsync(
-                session, queries, perQuery: 2, maxSnippets: 8, maxCharsPerSnippet: 600,
-                ct: cancellationToken);
-            if (evidence == "(no sources retrieved)")
-                throw new InvalidOperationException(
-                    "Accuracy Editor cannot verify claims because no source excerpts were retrieved.");
-
             var approvedPerspectives = state.Research?.Perspectives;
             if (state.Request.ExplorePerspectives && approvedPerspectives is null)
                 throw new InvalidOperationException(
@@ -118,25 +103,43 @@ public static partial class FactCheckAgent
                 var verifiedSources = RagPrompt.InventoryCitations(session);
                 if (rag.PerspectiveSession is { } indexedPerspectives)
                     verifiedSources.AddRange(RagPrompt.InventoryCitations(indexedPerspectives));
-                PerspectiveAnalysisValidator.Validate(
-                    approvedPerspectives, verifiedSources);
-                if (rag.PerspectiveSession is { } additional)
-                {
-                    var perspectiveQueries = approvedPerspectives.Perspectives
-                        .Select(p => p.Name)
-                        .Prepend(state.Request.Topic)
-                        .Take(4);
-                    var additionalEvidence = await RagPrompt.GatherEvidenceAsync(
-                        additional, perspectiveQueries, perQuery: 2, maxSnippets: 3,
-                        maxCharsPerSnippet: 450, ct: cancellationToken);
-                    if (additionalEvidence != "(no sources retrieved)")
-                        evidence += "\n" + additionalEvidence;
-                }
+                PerspectiveAnalysisValidator.Validate(approvedPerspectives, verifiedSources);
             }
 
-            var prompt = BuildReviewPrompt(plan, quiz, state.Research, evidence, state.Request.AudienceAge);
-            var review = await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
-                agent, prompt, "FactCheck", cancellationToken);
+            // Check ALL sections and questions, two at a time. Every batch gets its own
+            // relevant source excerpts and complete JSON validation. If a two-item
+            // batch hits the model's output limit, retry its items separately.
+            // A single-item failure still fails the stage; there is no partial audit.
+            var review = await AccuracyReviewBatcher.RunAsync(plan, quiz, async (scope, token) =>
+            {
+                var queries = scope.Sections
+                    .Select(i => plan.Sections[i].Title + " " + plan.Sections[i].Body[..Math.Min(160, plan.Sections[i].Body.Length)])
+                    .Concat(scope.Questions.Select(i => quiz.Questions[i].Stem))
+                    .Append(state.Request.Topic)
+                    .Where(s => !string.IsNullOrWhiteSpace(s));
+
+                var evidence = await RagPrompt.GatherEvidenceAsync(
+                    session, queries, perQuery: 1, maxSnippets: 4,
+                    maxCharsPerSnippet: 480, ct: token);
+                if (evidence == "(no sources retrieved)")
+                    throw new InvalidOperationException(
+                        $"Accuracy Editor cannot verify {scope.Label} because no source excerpts were retrieved.");
+
+                if (rag.PerspectiveSession is { } perspectiveSession && approvedPerspectives is not null)
+                {
+                    var extra = await RagPrompt.GatherEvidenceAsync(
+                        perspectiveSession, queries, perQuery: 1, maxSnippets: 2,
+                        maxCharsPerSnippet: 360, ct: token);
+                    if (extra != "(no sources retrieved)")
+                        evidence += "\n" + extra;
+                }
+
+                var prompt = BuildScopedReviewPrompt(
+                    plan, quiz, state.Research, evidence, scope, state.Request.AudienceAge);
+
+                return await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
+                    agent, prompt, $"FactCheck {scope.Label}", token);
+            }, cancellationToken);
 
             // Deliberately do not trust the LLM to reconstruct or modify the approved
             // lesson, quiz, answers or citations. Only audit findings come from the LLM.
@@ -146,6 +149,85 @@ public static partial class FactCheckAgent
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
             return output;
         }
+    }
+
+    /// <summary>
+    /// Compact prompt for one or two target items. The full plan is available as
+    /// a SHORT map for quiz/lesson alignment, while the exact target text gets
+    /// more detail. Truncation is disclosed instead of treating missing context
+    /// as proof that a concept was never taught.
+    /// </summary>
+    public static string BuildScopedReviewPrompt(
+        LessonPlanOutput plan, QuizOutput quiz, ResearchOutput? research,
+        string evidence, AccuracyReviewBatcher.Scope scope, int audienceAge)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(quiz);
+        ArgumentNullException.ThrowIfNull(scope);
+        ArgumentException.ThrowIfNullOrWhiteSpace(evidence);
+
+        static string Short(string? input, int max)
+            => string.IsNullOrWhiteSpace(input) ? "" :
+                input.Length <= max ? input : input[..max] + "…";
+
+        var context = new StringBuilder();
+        context.AppendLine($"LESSON: {Short(plan.Title, 130)}");
+        context.AppendLine($"AGE: {audienceAge}; GRADE: {Short(plan.GradeBand, 70)}");
+        context.AppendLine($"OBJECTIVES: {Short(string.Join("; ", plan.LearningObjectives.Take(6)), 480)}");
+        context.AppendLine("LESSON MAP (excerpts may omit material; do NOT infer absence from them):");
+        foreach (var (section, index) in plan.Sections.Select((s, i) => (s, i)))
+            context.AppendLine($"S{index + 1}: {Short(section.Title, 60)} — {Short(section.Body, 125)}");
+
+        if (plan.Vocabulary.Count > 0)
+            context.AppendLine("TAUGHT VOCABULARY: " +
+                Short(string.Join("; ", plan.Vocabulary.Take(12).Select(v =>
+                    $"{Short(v.Term, 45)}: {Short(v.Definition, 65)}")), 850));
+
+        context.AppendLine("TARGET ITEMS (audit ONLY these identifiers):");
+        foreach (var i in scope.Sections)
+        {
+            var section = plan.Sections[i];
+            context.AppendLine($"S{i + 1}: {Short(section.Title, 110)} — {Short(section.Body, 650)}");
+        }
+        foreach (var i in scope.Questions)
+        {
+            var q = quiz.Questions[i];
+            context.AppendLine($"Q{i + 1}: {Short(q.Stem, 250)}");
+            for (var option = 0; option < q.Options.Count; option++)
+                context.AppendLine($"  {option}: {Short(q.Options[option], 100)}");
+            context.AppendLine($"  Correct index: {q.CorrectIndex}; explanation: {Short(q.Explanation, 310)}");
+        }
+
+        if (research is { GroundedFacts.Count: > 0 })
+        {
+            context.AppendLine("RESEARCH FACTS (bounded excerpts):");
+            foreach (var fact in research.GroundedFacts.Take(6))
+                context.AppendLine("- " + Short(fact.Statement, 150));
+        }
+
+        var perspectives = research?.Perspectives is null ? ""
+            : Short(PerspectivePrompt.ForLesson(research.Perspectives), 1300) +
+              "\nCheck fairness but never manufacture opposing sides.";
+
+        return $"""
+            Review ONLY {scope.Label} from the approved lesson and quiz.
+            Every target must be considered; do not return a review of other items.
+            Keep the full JSON compact: at most TWO substantive findings per target,
+            brief fields (claim < 55 characters, issue/recommendation < 150 each,
+            evidence < 110). Prefer the issues most important to an educator.
+            A missing concept in a shortened lesson map is NOT proof it was never taught.
+            You may flag insufficient evidence, but do not assert certain absence
+            unless the supplied material genuinely establishes it.
+
+            {context}
+            {perspectives}
+            RETRIEVED EVIDENCE:
+            {evidence}
+
+            Return ONLY JSON with flags, citation_coverage, notes, using the required
+            structured finding fields and severity rubric. Include empty flags if
+            no issues found. Keep notes to one short sentence. No rewritten content.
+            """;
     }
 
     /// <summary>Creates a bounded, read-only review request, never a reproduction task.</summary>
