@@ -4,8 +4,8 @@ namespace LessonForge.Core.Configuration;
 
 /// <summary>
 /// Local-LLM connection settings for LessonForge, bound from the <c>LessonForge:Llm</c>
-/// section of <c>appsettings.json</c> (or overridden via environment variables like
-/// <c>LessonForge__Llm__ChatModel</c>).
+/// section of the repository's committed <c>LessonForge.Api/appsettings.json</c>.
+/// The default installation does not require any environment variables.
 ///
 /// Everything runs against a local <b>Ollama</b> server through its OpenAI-compatible API —
 /// no cloud keys, no external endpoints. Defaults target a stock Ollama install.
@@ -18,16 +18,11 @@ public sealed class LlmOptions
     public string Endpoint { get; set; } = "http://localhost:11434/v1";
 
     /// <summary>
-    /// The primary reasoning/generation model (lesson planning, quiz authoring, fact-checking).
-    /// Pull it first with: <c>ollama pull qwen3.8:27b</c>.
+    /// The chat model used by the four workflow agents. The default is the model
+    /// verified in the live research-approval smoke test.
+    /// Install with: <c>ollama pull gemma4:latest</c>.
     /// </summary>
-    public string ChatModel { get; set; } = "qwen3.8:27b";
-
-    /// <summary>
-    /// A smaller, faster model for cheap sub-tasks (query planning, short summaries).
-    /// Pull it with: <c>ollama pull qwen3.5:9b</c>.
-    /// </summary>
-    public string FastChatModel { get; set; } = "qwen3.5:9b";
+    public string ChatModel { get; set; } = "gemma4:latest";
 
     /// <summary>
     /// The embedding model used to vectorize retrieved source chunks and queries.
