@@ -66,12 +66,24 @@ public static partial class LessonPlannerAgent
             if (research.GroundedFacts is not { Count: > 0 })
                 throw new InvalidOperationException(
                     "LessonPlanner received no approved research facts.");
+            if (request.ExplorePerspectives && research.Perspectives is null)
+                throw new InvalidOperationException(
+                    "LessonPlanner is missing educator-approved perspective analysis.");
+            if (research.Perspectives is not null)
+                PerspectiveAnalysisValidator.Validate(
+                    research.Perspectives, research.SourceInventory);
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
                 $"{i + 1}. {f.Statement} [sources: {string.Join("; ", f.Citations.Select(c => $"{c.Title} ({c.Url})"))}]"));
+            var perspectives = PerspectivePrompt.ForLesson(research.Perspectives);
+            var perspectiveInstruction = research.Perspectives?.Status == PerspectiveAnalysisValidator.Supported
+                ? "Include a dedicated section comparing these credible interpretations, their supporting evidence, and limitations. Explain the distinction between perspectives and established facts. Make the activity age-appropriate. Do not assign equal credibility without evidence."
+                : research.Perspectives is not null
+                    ? "Do not manufacture a disagreement: the approved analysis did not establish two credible competing interpretations."
+                    : "";
 
-            var prompt = $$"""
+            var prompt = $"""
                 Design a lesson plan for this audience.
 
                 TOPIC: {{request.Topic}}
@@ -83,6 +95,9 @@ public static partial class LessonPlannerAgent
 
                 GROUNDED FACTS (use only these; keep their source URLs as citations):
                 {{facts}}
+
+                {{perspectives}}
+                {{perspectiveInstruction}}
 
                 Set grade_band to "{{gradeBand}}" and calibrate all explanations and activities to age {{request.AudienceAge}}.
                 Return one complete JSON object using exactly these top-level keys:
