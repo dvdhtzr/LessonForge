@@ -95,6 +95,28 @@ asset. The existing permission and provenance checks apply unchanged.
 
 See [source architecture and source policy](docs/source-registry.md).
 
+### Reading layout and live agent activity
+
+The desktop reading workspace and educator review dialogs are approximately
+**20% wider** (920→1104px workspace, 660→792px general dialog, 760→912px
+educator dialog). The layout remains responsive on narrow screens.
+
+Research source links now show small, locally rendered provider/article badges
+(Wikipedia, USGS, Library of Congress, Project Gutenberg and Smithsonian).
+Teacher lesson pages also have a **collapsed Research source library** showing
+retrieved source identity and licensing metadata. No remote logos, favicons or
+article images are fetched, since those require independent image licensing and
+source URL controls.
+
+The lesson-generation page highlights the actual active agent, shows live
+research/progress text, counts **completed workflow stages** (not estimated time),
+and offers an expandable history of the eight most recent real SSE events.
+Educator review is shown as a paused checkpoint. No synthetic agent messages,
+fake progress percentages or fabricated progress animation are introduced;
+a small active indicator respects reduced-motion preferences. The backend MAF
+graph, review gates, SSE event contract, source permissions and model
+configuration remain unchanged.
+
 ### Key design decisions
 
 - **RAG index is in-memory and per-request** — built fresh from live Wikipedia each run, then
