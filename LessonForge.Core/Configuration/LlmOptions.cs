@@ -50,9 +50,4 @@ public sealed class LlmOptions
     /// </summary>
     public int MaxRetries { get; set; } = 0;
 
-    /// <summary>
-    /// Placeholder credential. Ollama does not require authentication; the OpenAI client
-    /// simply needs a non-empty value.
-    /// </summary>
-    public string ApiKey { get; set; } = "ollama";
 }
