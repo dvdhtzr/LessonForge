@@ -30,6 +30,8 @@ public sealed class ClientFactory
             throw new ArgumentOutOfRangeException(nameof(options.NetworkTimeoutSeconds), "Must be positive.");
         if (options.MaxRetries < 0)
             throw new ArgumentOutOfRangeException(nameof(options.MaxRetries), "Cannot be negative.");
+        if (options.MaxOutputTokens <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options.MaxOutputTokens), "Must be positive.");
 
         Options = options;
         var clientOptions = new OpenAIClientOptions
