@@ -77,9 +77,12 @@ public sealed class SourceRegistry
         foreach (var adapter in _adapters.Where(a => a.SupportsTopic(topic)))
         {
             ct.ThrowIfCancellationRequested();
+            progress?.Report($"Checking reviewed source {adapter.Id}…");
             try
             {
                 var candidates = await adapter.RetrieveAsync(topic, ct);
+                if (candidates.Count == 0)
+                    progress?.Report($"No eligible results from {adapter.Id} for this query.");
                 foreach (var source in candidates)
                 {
                     if (source is null || source.ProviderId != adapter.Id)
