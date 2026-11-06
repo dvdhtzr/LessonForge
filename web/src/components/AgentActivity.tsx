@@ -1,5 +1,5 @@
 import type { StageStatus } from '../types'
-import { getStage, STAGES } from './StageTimeline'
+import { getStage, STAGES } from './stageDefinitions'
 
 export interface ActivityEntry {
   id: number
