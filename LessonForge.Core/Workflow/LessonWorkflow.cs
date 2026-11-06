@@ -111,7 +111,10 @@ public static class LessonWorkflow
         var fetcher = new SourceFetcher(CreateHttpClient());
         var embeddings = clients.CreateEmbeddingGenerator();
         var registry = new SourceRegistry(
-            [new UsgsEarthquakeProvider(CreateHttpClient())]);
+        [
+            new UsgsEarthquakeProvider(CreateHttpClient()),
+            new LocLawmakingCatalogProvider(CreateHttpClient())
+        ]);
         return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
     }
 
