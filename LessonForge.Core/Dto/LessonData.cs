@@ -195,6 +195,26 @@ public sealed class QuizQuestion
 
 // ──────────────────── Fact-check stage ────────────────────
 
+/// <summary>
+/// Compact model-produced review only. The application joins these findings with
+/// the educator-approved plan and generated quiz; the LLM never rewrites either.
+/// </summary>
+[Description("Accuracy Editor findings about an existing lesson and quiz, not rewritten content.")]
+public sealed class FactCheckReviewOutput
+{
+    [JsonPropertyName("flags")]
+    [Description("Unsupported or misleading claims; use an empty array if none were found.")]
+    public List<VerificationFlag> Flags { get; set; } = new();
+
+    [JsonPropertyName("citation_coverage")]
+    [Description("Estimated fraction from 0 to 1 of reviewed claims supported by the evidence.")]
+    public double CitationCoverage { get; set; }
+
+    [JsonPropertyName("notes")]
+    [Description("Short neutral explanation of results, evidence limitations, and uncertainty.")]
+    public string Notes { get; set; } = "";
+}
+
 [Description("The Accuracy Editor's verified, citation-checked lesson and quiz.")]
 public sealed class VerifiedLessonOutput
 {
