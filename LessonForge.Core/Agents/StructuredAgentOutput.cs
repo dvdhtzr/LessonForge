@@ -152,6 +152,7 @@ public static class StructuredAgentOutput
             var requiredArray = value switch
             {
                 ResearchOutput when missing.Contains("grounded_facts") => "grounded_facts",
+                ResearchDraftOutput when missing.Contains("grounded_facts") => "grounded_facts",
                 QuizOutput when missing.Contains("questions") => "questions",
                 _ => null
             };
@@ -193,6 +194,10 @@ public static class StructuredAgentOutput
         var missing = new List<string>();
         switch (value)
         {
+            case ResearchDraftOutput draft:
+                missing.AddRange(MissingRequiredContent(draft.ToResearchOutput()));
+                break;
+
             case ResearchOutput research:
                 if (string.IsNullOrWhiteSpace(research.TopicSummary)) missing.Add("topic_summary");
                 if (research.GroundedFacts is not { Count: > 0 })
