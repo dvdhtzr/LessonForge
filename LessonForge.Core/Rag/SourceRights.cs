@@ -81,7 +81,18 @@ public static class SourcePermissionGate
              rights.PolicyUrl !=
                 "https://www.loc.gov/collections/century-of-lawmaking/about-this-collection/rights-and-access/"))
             return Deny("LoC decision is restricted to approved public-domain congressional catalog records.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking"))
+        if (document.ProviderId == "gutenberg-catalog" &&
+            (document.Kind != SourceKind.GutenbergCatalog ||
+             !uri.Host.Equals("www.gutenberg.org", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/ebooks/", StringComparison.Ordinal) ||
+             !int.TryParse(uri.AbsolutePath["/ebooks/".Length..], out var bookId) ||
+             bookId is < 1 or > 9_999_999 ||
+             document.CanonicalId != bookId.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+             uri.Query.Length > 0 || uri.Fragment.Length > 0 ||
+             rights.LicenseId != "PG-CATALOG-PD" ||
+             rights.PolicyUrl != "https://www.gutenberg.org/policy/robot_access.html"))
+            return Deny("Gutenberg rights apply only to official catalog metadata, not ebook text.");
+        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
