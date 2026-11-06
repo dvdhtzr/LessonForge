@@ -201,6 +201,11 @@ public static class StructuredAgentOutput
                 missing.AddRange(MissingRequiredContent(draft.ToResearchOutput()));
                 break;
 
+            case ResearchSummaryRepairOutput repair:
+                if (string.IsNullOrWhiteSpace(repair.TopicSummary))
+                    missing.Add("topic_summary");
+                break;
+
             case ResearchOutput research:
                 if (string.IsNullOrWhiteSpace(research.TopicSummary)) missing.Add("topic_summary");
                 if (research.GroundedFacts is not { Count: > 0 })
