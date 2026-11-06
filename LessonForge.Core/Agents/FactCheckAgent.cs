@@ -10,35 +10,38 @@ using Microsoft.Extensions.AI;
 
 namespace LessonForge.Core.Agents;
 
-// Accuracy Editor — final node in the lesson crew.
-//   … ──► ┌────────────────┐
-//         │ ACCURACY EDITOR │ ──► verified lesson + quiz
-//         └────────────────┘
-// Verifies every claim and quiz answer against the retrieved sources, repairs/attaches citations,
-// and flags anything unsupported.
+// Accuracy Editor — final MAF executor. It reviews the already-approved lesson and
+// completed quiz but does NOT regenerate either. Only its compact findings are
+// model-generated. The host deterministically assembles the final persisted result.
 public static partial class FactCheckAgent
 {
     public const string AgentName = "AccuracyEditor";
 
     public const string AgentInstructions = """
-        You are a skeptical fact-checking editor. You verify a lesson plan and its quiz against the
-        retrieved SOURCE excerpts.
+        You are a skeptical educational fact-checker. Verify existing lesson and quiz
+        claims against the supplied retrieved source excerpts and approved research.
+        Do not use general model memory to invent facts or references.
 
-        For each learning objective, key claim, and quiz answer:
-        - Confirm it is supported by the provided sources. Attach or repair citations (URLs) so each
-          supported claim points to the source that backs it.
-        - If a claim is not supported by any provided source, add it to flags with a clear issue and
-          a severity (High/Medium/Low). Do NOT delete content — flag it so the educator can decide.
+        You are NOT the lesson author. Do not return a rewritten plan or quiz and do not
+        attempt to change answers, activities, citations or lesson text. Instead, flag
+        incorrect, unsupported, unverifiable or misleading claims for educator review.
+        Identify each issue by its original claim or numbered item (S1, Q1, etc.).
 
-        Return the full plan and quiz (corrected citations only — keep the educator-approved content
-        intact), the flags, a citation_coverage between 0 and 1 (supported claims ÷ checked claims),
-        and short overall notes. You would rather flag a gap than let an unsourced claim ship.
+        Output only a SMALL JSON object with exactly these top-level keys:
+        - "flags": an array of objects, each with nonempty "claim", "issue", and
+          "severity" (High, Medium, or Low). Return [] if nothing was flagged.
+        - "citation_coverage": a number from 0 to 1 estimating the fraction of
+          reviewed claims supported by supplied evidence. Do not invent precision.
+        - "notes": 1-3 sentences describing your review and any evidence limitations.
 
-        Output only valid JSON matching the VerifiedLessonOutput schema.
+        Review each lesson section and quiz answer for source support; uncertainty is a
+        reason to flag a claim, not to assert it is true. Keep flags and notes concise,
+        finish the entire JSON object, and output no markdown or other keys.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
+        => StructuredAgentOutput.CreateSchemaAgent<FactCheckReviewOutput>(
+            chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class FactCheckExecutor(AIAgent agent, RagContext rag) : Executor("FactCheck")
     {
@@ -47,59 +50,134 @@ public static partial class FactCheckAgent
             QuizOutput quiz, IWorkflowContext context, CancellationToken cancellationToken = default)
         {
             var state = await context.ReadStateAsync<LessonWorkflowState>(
-                LessonStateShared.Key, scopeName: LessonStateShared.Scope) ?? new LessonWorkflowState();
-            var plan = state.Plan ?? new LessonPlanOutput();
+                LessonStateShared.Key, scopeName: LessonStateShared.Scope)
+                ?? throw new InvalidOperationException("Accuracy Editor cannot load workflow state.");
 
-            // Pull supporting evidence for the objectives and quiz stems.
-            var evidence = "(no retrieval index available)";
-            if (rag.Session is { } session)
-            {
-                var queries = plan.LearningObjectives
-                    .Concat(quiz.Questions.Select(q => q.Stem))
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Take(12);
-                evidence = await RagPrompt.GatherEvidenceAsync(session, queries, perQuery: 4, maxSnippets: 20, ct: cancellationToken);
-            }
+            var plan = state.Plan
+                ?? throw new InvalidOperationException("Accuracy Editor received no approved lesson plan.");
+            if (plan.Sections is not { Count: > 0 } || quiz.Questions is not { Count: > 0 })
+                throw new InvalidOperationException(
+                    "Accuracy Editor requires the approved lesson sections and generated quiz questions.");
 
-            var sb = new StringBuilder();
-            sb.AppendLine($"LESSON TITLE: {plan.Title}");
-            sb.AppendLine("OBJECTIVES:");
-            foreach (var o in plan.LearningObjectives) sb.AppendLine($" - {o}");
-            sb.AppendLine("SECTIONS:");
-            foreach (var s in plan.Sections) sb.AppendLine($" ## {s.Title}\n{s.Body}");
-            sb.AppendLine("QUIZ:");
-            for (var i = 0; i < quiz.Questions.Count; i++)
-            {
-                var q = quiz.Questions[i];
-                var correct = q.CorrectIndex >= 0 && q.CorrectIndex < q.Options.Count ? q.Options[q.CorrectIndex] : "(?)";
-                sb.AppendLine($" Q{i + 1}: {q.Stem}  → correct: {correct}");
-            }
+            if (rag.Session is not { } session)
+                throw new InvalidOperationException(
+                    "Accuracy Editor cannot verify claims because the source retrieval index is missing.");
 
-            var prompt = $"""
-                Verify this lesson and quiz against the sources.
+            // Bound input context for local Ollama. The old implementation sent long
+            // sections, every quiz question, up to 20 large RAG snippets, and asked the
+            // model to regenerate all of that as a single JSON output.
+            var queries = plan.LearningObjectives
+                .Concat(quiz.Questions.Select(q => q.Stem))
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Take(12);
 
-                MATERIAL:
-                {sb}
+            var evidence = await RagPrompt.GatherEvidenceAsync(
+                session, queries, perQuery: 2, maxSnippets: 8, maxCharsPerSnippet: 600,
+                ct: cancellationToken);
+            if (evidence == "(no sources retrieved)")
+                throw new InvalidOperationException(
+                    "Accuracy Editor cannot verify claims because no source excerpts were retrieved.");
 
-                SOURCE EXCERPTS (the only evidence; cite by URL):
-                {evidence}
-
-                Return the full plan and quiz with citations corrected to point at supporting sources,
-                a flags list for anything unsupported, a citation_coverage (0..1), and notes.
-                Output structured JSON matching VerifiedLessonOutput.
-                """;
-
-            var output = await StructuredAgentOutput.RunAsync<VerifiedLessonOutput>(
+            var prompt = BuildReviewPrompt(plan, quiz, state.Research, evidence);
+            var review = await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
                 agent, prompt, "FactCheck", cancellationToken);
 
-            // Guard against a model that drops content: fall back to the approved plan/quiz.
-            if (output.Plan is null || output.Plan.Sections.Count == 0)
-                output.Plan = plan;
-            if (output.Quiz is null || output.Quiz.Questions.Count == 0)
-                output.Quiz = quiz;
+            // Deliberately do not trust the LLM to reconstruct or modify the approved
+            // lesson, quiz, answers or citations. Only audit findings come from the LLM.
+            var output = AssembleVerifiedLesson(plan, quiz, review);
 
+            state.CurrentStep = 5;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
             return output;
         }
+    }
+
+    /// <summary>Creates a bounded, read-only review request, never a reproduction task.</summary>
+    public static string BuildReviewPrompt(
+        LessonPlanOutput plan, QuizOutput quiz, ResearchOutput? research, string evidence)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(quiz);
+        ArgumentException.ThrowIfNullOrWhiteSpace(evidence);
+
+        static string Trim(string? text, int maxChars)
+            => text is null ? "" : text.Length <= maxChars ? text : text[..maxChars] + "…";
+
+        var context = new StringBuilder();
+        context.AppendLine($"LESSON: {Trim(plan.Title, 160)}");
+        context.AppendLine("LEARNING OBJECTIVES:");
+        foreach (var objective in plan.LearningObjectives.Take(8))
+            context.AppendLine($"- {Trim(objective, 220)}");
+
+        context.AppendLine("APPROVED RESEARCH FACTS:");
+        if (research is { GroundedFacts.Count: > 0 })
+            foreach (var fact in research.GroundedFacts.Take(10))
+                context.AppendLine($"- {Trim(fact.Statement, 240)}");
+
+        context.AppendLine("LESSON SECTIONS:");
+        for (var i = 0; i < plan.Sections.Count; i++)
+        {
+            var section = plan.Sections[i];
+            context.AppendLine($"S{i + 1}: {Trim(section.Title, 140)} — {Trim(section.Body, 550)}");
+        }
+
+        context.AppendLine("QUIZ ANSWERS TO VERIFY:");
+        for (var i = 0; i < quiz.Questions.Count; i++)
+        {
+            var q = quiz.Questions[i];
+            var answer = q.CorrectIndex >= 0 && q.CorrectIndex < q.Options.Count
+                ? q.Options[q.CorrectIndex] : "(invalid index)";
+            context.AppendLine(
+                $"Q{i + 1}: {Trim(q.Stem, 220)} | answer: {Trim(answer, 120)} | " +
+                $"explanation: {Trim(q.Explanation, 260)}");
+        }
+
+        return $"""
+            Review the EXISTING educator-approved lesson and quiz. Do not rewrite either.
+
+            MATERIAL TO CHECK:
+            {context}
+
+            RETRIEVED SOURCE EVIDENCE (the only independent evidence for verification):
+            {evidence}
+
+            Return only a small JSON object with "flags", "citation_coverage", "notes".
+            Flags should identify original S# or Q# items and explain unsupported
+            claims. An empty flags array is acceptable only if no issues were found.
+            Never return "plan", "quiz", rewritten content or source excerpts.
+            """;
+    }
+
+    /// <summary>
+    /// Keep the educator-approved artifacts intact. The model only supplies findings;
+    /// it cannot change lesson sections, the answer key or their citations.
+    /// </summary>
+    public static VerifiedLessonOutput AssembleVerifiedLesson(
+        LessonPlanOutput approvedPlan, QuizOutput quiz, FactCheckReviewOutput review)
+    {
+        ArgumentNullException.ThrowIfNull(approvedPlan);
+        ArgumentNullException.ThrowIfNull(quiz);
+        ArgumentNullException.ThrowIfNull(review);
+
+        if (approvedPlan.Sections is not { Count: > 0 } || quiz.Questions is not { Count: > 0 })
+            throw new InvalidOperationException("Cannot finalize a lesson with empty plan or quiz content.");
+
+        if (review.Flags is null || string.IsNullOrWhiteSpace(review.Notes) ||
+            double.IsNaN(review.CitationCoverage) || double.IsInfinity(review.CitationCoverage) ||
+            review.CitationCoverage is < 0 or > 1 ||
+            review.Flags.Any(flag => flag is null ||
+                string.IsNullOrWhiteSpace(flag.Claim) ||
+                string.IsNullOrWhiteSpace(flag.Issue) ||
+                flag.Severity is not ("High" or "Medium" or "Low")))
+            throw new InvalidOperationException("Accuracy Editor returned incomplete or invalid review findings.");
+
+        return new VerifiedLessonOutput
+        {
+            Plan = approvedPlan,
+            Quiz = quiz,
+            Flags = review.Flags,
+            CitationCoverage = review.CitationCoverage,
+            Notes = review.Notes
+        };
     }
 }
