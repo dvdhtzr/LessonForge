@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.7204101">
+  <PropertyGroup>
+    <!-- Front-end project for the LessonForge API (React + TypeScript + Vite). -->
+    <!-- F5 / "Debug" launches the Vite dev server; see vite.config.ts for the /api proxy. -->
+    <StartupCommand>npm run dev</StartupCommand>
+    <!-- "Build" runs the production build (tsc -b && vite build) into dist/. -->
+    <BuildCommand>npm run build</BuildCommand>
+    <BuildOutputFolder>$(MSBuildProjectDirectory)\dist</BuildOutputFolder>
+    <ShouldRunBuildScript>true</ShouldRunBuildScript>
+    <!-- Vite owns TypeScript compilation; don't let the SDK invoke tsc itself. -->
+    <TypeScriptCompileBlocked>true</TypeScriptCompileBlocked>
+  </PropertyGroup>
+</Project>
