@@ -53,10 +53,19 @@ api.MapPost("/generate", async (HttpContext ctx, LessonRequest request, bool? in
     ctx.Response.Headers.CacheControl = "no-cache";
     ctx.Response.Headers["X-Accel-Buffering"] = "no";
 
-    await foreach (var frame in session.Frames.Reader.ReadAllAsync(ctx.RequestAborted))
+    try
     {
-        await ctx.Response.WriteAsync(frame, ctx.RequestAborted);
-        await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+        await foreach (var frame in session.Frames.Reader.ReadAllAsync(ctx.RequestAborted))
+        {
+            await ctx.Response.WriteAsync(frame, ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+        }
+    }
+    finally
+    {
+        // Do not leave an Ollama workflow running after its browser stream disconnects.
+        if (ctx.RequestAborted.IsCancellationRequested)
+            runs.TryCancel(session.RunId);
     }
 });
 
