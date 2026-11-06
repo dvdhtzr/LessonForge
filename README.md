@@ -38,6 +38,18 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
   `nomic-embed-text:v1.5` for the RAG embeddings. Both names are defined in the
   committed `LessonForge.Api/appsettings.json`. No API keys, cloud services, or
   manually configured environment variables are necessary.
+- **Structured Accuracy Review:** the final agent produces advisory findings with
+  High / Medium / Low / Informational severity, a controlled issue category,
+  a lesson-section or quiz-question reference (S# / Q#), a concrete educator
+  recommendation and an optional AI-written evidence summary. Severity uses a
+  documented instructional rubric. C# rejects malformed categories, absent
+  actions and out-of-range locations; it supplies repeatable finding IDs and only
+  consolidates obvious duplicates at the same location/category/focal claim.
+  The review UI groups findings and links them to relevant lesson content.
+  Historical SQLite lessons with the earlier three-field flags remain readable.
+  Teacher exports carry review actions; student exports do not expose flags.
+  This does **not** independently prove claims true or guarantee that the review
+  catches every omission, especially where the source/lesson excerpts were bounded.
 - **Streaming + gates:** the API streams Server-Sent Events (`run` → `stage*` → `gate*` →
   `complete` → `done`). Gates map to MAF `RequestPort`s; the UI approves/edits/aborts. Active runs
   live in memory (single-user v1).
