@@ -91,6 +91,7 @@ public sealed class LessonRunService(
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 
             VerifiedLessonOutput? result = null;
+            string? failureMessage = null;
 
             await foreach (var evt in run.WatchStreamAsync().WithCancellation(ct))
             {
