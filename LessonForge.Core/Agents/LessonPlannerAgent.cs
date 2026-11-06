@@ -70,8 +70,16 @@ public static partial class LessonPlannerAgent
                 throw new InvalidOperationException(
                     "LessonPlanner is missing educator-approved perspective analysis.");
             if (research.Perspectives is not null)
+            {
+                var authoritativeSources = rag.Session is { } sources
+                    ? RagPrompt.InventoryCitations(sources)
+                    : throw new InvalidOperationException(
+                        "LessonPlanner cannot verify perspective citations: source index is missing.");
+                if (rag.PerspectiveSession is { } additional)
+                    authoritativeSources.AddRange(RagPrompt.InventoryCitations(additional));
                 PerspectiveAnalysisValidator.Validate(
-                    research.Perspectives, research.SourceInventory);
+                    research.Perspectives, authoritativeSources);
+            }
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
