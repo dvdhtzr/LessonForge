@@ -1,6 +1,7 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using LessonForge.Core.Workflow;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
@@ -80,6 +81,17 @@ public static partial class LessonPlannerAgent
                 PerspectiveAnalysisValidator.Validate(
                     research.Perspectives, authoritativeSources);
             }
+            var knownSources = rag.Session is { } primarySession
+                ? primarySession.Citations.Concat(
+                    rag.PerspectiveSession?.Citations ?? []).ToList()
+                : throw new InvalidOperationException(
+                    "LessonPlanner cannot verify citations without the source index.");
+            foreach (var fact in research.GroundedFacts)
+                SourceCitationValidator.RequireRetrieved(
+                    fact.Citations, knownSources, "Educator-approved research fact");
+            SourceCitationValidator.RequireRetrieved(
+                research.SourceInventory, knownSources, "Research source inventory");
+
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
             var facts = string.Join("\n", research.GroundedFacts.Select((f, i) =>
@@ -146,6 +158,8 @@ public static partial class LessonPlannerAgent
             // The inventory was collected by the retrieval system, not fabricated by an LLM.
             if (output.Citations is not { Count: > 0 })
                 output.Citations = research.SourceInventory;
+            SourceCitationValidator.RequireRetrieved(
+                output.Citations, knownSources, "Curriculum Designer");
 
             // The research arriving through the RequestPort is the educator-approved
             // version, potentially edited. Preserve it over the pre-approval copy.
