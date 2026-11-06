@@ -272,29 +272,7 @@ public static class StructuredAgentOutput
                 break;
 
             case FactCheckReviewOutput review:
-                if (review.Flags is null)
-                {
-                    missing.Add("flags");
-                }
-                else
-                {
-                    for (var index = 0; index < review.Flags.Count; index++)
-                    {
-                        var flag = review.Flags[index];
-                        if (flag is null || string.IsNullOrWhiteSpace(flag.Claim))
-                            missing.Add($"flags[{index}].claim");
-                        if (flag is null || string.IsNullOrWhiteSpace(flag.Issue))
-                            missing.Add($"flags[{index}].issue");
-                        if (flag is null || flag.Severity is not ("High" or "Medium" or "Low"))
-                            missing.Add($"flags[{index}].severity");
-                    }
-                }
-                if (double.IsNaN(review.CitationCoverage) ||
-                    double.IsInfinity(review.CitationCoverage) ||
-                    review.CitationCoverage is < 0 or > 1)
-                    missing.Add("citation_coverage");
-                if (string.IsNullOrWhiteSpace(review.Notes))
-                    missing.Add("notes");
+                missing.AddRange(AccuracyReviewPolicy.InvalidFields(review));
                 break;
 
             case VerifiedLessonOutput verified:
