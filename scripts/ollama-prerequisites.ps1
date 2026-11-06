@@ -23,14 +23,23 @@ if ([string]::IsNullOrWhiteSpace($chatModel) -or [string]::IsNullOrWhiteSpace($e
 
 # Ollama on Windows normally serves its local API automatically when the app is running.
 # Do not call "ollama serve" when that service is already active.
-& ollama list *> $null
+try {
+    $installedList = @(& ollama list 2>&1)
+}
+catch {
+    throw 'Cannot connect to Ollama. Launch the Ollama Windows app, then run "ollama list" before retrying.'
+}
 if ($LASTEXITCODE -ne 0) {
     throw 'Cannot connect to Ollama. Launch the Ollama Windows app, then run "ollama list" before retrying.'
 }
 
+# The "NAME" column contains exact Ollama names including tags, e.g. gemma4:latest.
+$installedNames = @($installedList | Select-Object -Skip 1 | ForEach-Object {
+    ($_ -split '\s+')[0]
+})
+
 foreach ($model in @($chatModel, $embeddingModel) | Select-Object -Unique) {
-    & ollama show $model *> $null
-    if ($LASTEXITCODE -eq 0) {
+    if ($installedNames -contains $model) {
         Write-Host "==> Ollama model available: $model"
         continue
     }
@@ -40,8 +49,18 @@ foreach ($model in @($chatModel, $embeddingModel) | Select-Object -Unique) {
     }
 
     Write-Host "==> Pulling Ollama model: $model (this may download several GB)"
-    & ollama pull $model
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to download model $model (exit code $LASTEXITCODE)."
+    # Ollama may report download progress on stderr. Check its exit code rather
+    # than letting PowerShell's native-stderr handling mistake progress for an error.
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & ollama pull $model
+        $pullExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+    }
+    if ($pullExitCode -ne 0) {
+        throw "Failed to download model $model (exit code $pullExitCode)."
     }
 }
