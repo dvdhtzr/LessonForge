@@ -160,7 +160,16 @@ public static class LessonExporter
             if (l.Flags.Count > 0)
             {
                 sb.AppendLine("### Accuracy Flags");
-                foreach (var f in l.Flags) sb.AppendLine($"- **[{f.Severity}]** {f.Claim} — {f.Issue}");
+                foreach (var f in l.Flags)
+                {
+                    var location = string.IsNullOrWhiteSpace(f.Location) ? "" : $" {f.Location}";
+                    var category = string.IsNullOrWhiteSpace(f.Category) ? "" : $" ({f.Category.Replace('_', ' ')})";
+                    sb.AppendLine($"- **[{f.Severity}]**{location}{category}: {f.Claim} — {f.Issue}");
+                    if (!string.IsNullOrWhiteSpace(f.Recommendation))
+                        sb.AppendLine($"  - **Recommended action:** {f.Recommendation}");
+                    if (!string.IsNullOrWhiteSpace(f.Evidence))
+                        sb.AppendLine($"  - **AI evidence summary:** {f.Evidence}");
+                }
                 sb.AppendLine();
             }
 
@@ -292,7 +301,9 @@ public static class LessonExporter
                             $"{i + 1}:{(q.CorrectIndex >= 0 && q.CorrectIndex < q.Options.Count ? (char)('A' + q.CorrectIndex) : '?')}"))));
 
                         if (l.Flags.Count > 0)
-                            Section(col, "Accuracy Flags", c => Bullets(c, l.Flags.Select(f => $"[{f.Severity}] {f.Claim} — {f.Issue}")));
+                            Section(col, "Accuracy Flags", c => Bullets(c, l.Flags.Select(f =>
+                                $"[{f.Severity}] {f.Location} {f.Claim} — {f.Issue}" +
+                                (string.IsNullOrWhiteSpace(f.Recommendation) ? "" : $" Action: {f.Recommendation}"))));
 
                         if (p.Citations.Count > 0)
                             Section(col, "Sources", c => Bullets(c, p.Citations.Select(ci => $"{ci.Title}: {ci.Url}")));
