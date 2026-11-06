@@ -317,3 +317,9 @@ section h3 { margin-bottom: 4px; }
   font-size: 12px; line-height: 1.35; color: var(--muted);
   overflow-wrap: anywhere;
 }
+
+.agent-board__stage-count {
+  margin: 15px 0 0; padding-top: 10px; border-top: 1px solid #cbdfd0;
+  font-size: 12px; font-weight: 700; color: var(--accent-dark);
+}
+.review-inventory .source-list { padding-left: 0; }
