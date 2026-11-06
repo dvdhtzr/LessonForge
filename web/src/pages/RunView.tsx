@@ -119,6 +119,7 @@ export default function RunView() {
 
       <AgentActivity
         connected={runConnected}
+        explorePerspectives={state.request.explore_perspectives}
         latestStageId={latestStageId}
         statuses={statuses}
         progressMessage={progressMessage}
