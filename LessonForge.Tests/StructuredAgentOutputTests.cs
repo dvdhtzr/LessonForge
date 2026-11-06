@@ -10,11 +10,60 @@ public sealed class StructuredAgentOutputTests
     public void EmptyAnswer_ReportsFinishReasonAndContentTypes()
     {
         var error = Assert.Throws<InvalidOperationException>(() =>
-            StructuredAgentOutput.Parse<ResearchOutput>("  ", "Research", "Length", "TextReasoningContent"));
+            StructuredAgentOutput.Parse<ResearchOutput>("  ", "Research", "Stop", "TextReasoningContent"));
 
         Assert.Contains("no final JSON", error.Message);
-        Assert.Contains("Length", error.Message);
+        Assert.Contains("Stop", error.Message);
         Assert.Contains("TextReasoningContent", error.Message);
+    }
+
+    [Theory]
+    [InlineData("length")]
+    [InlineData("Length")]
+    public void TokenLimit_ReportsTruncationEvenWhenPrefixLooksLikeJson(string finishReason)
+    {
+        // A provider may stop on a length limit at any point, including a JSON boundary.
+        const string apparentlyComplete = """
+            {"topic_summary":"short","grounded_facts":[{"statement":"fact","citations":[{"title":"source","url":"https://example.org"}]}]}
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchOutput>(apparentlyComplete, "Research", finishReason));
+
+        Assert.Contains("output was truncated", error.Message);
+        Assert.Contains("MaxOutputTokens", error.Message);
+        Assert.DoesNotContain("example.org", error.Message);
+    }
+
+    [Fact]
+    public void TokenLimit_ReportsIncompleteJsonAsTruncationInsteadOfParserFailure()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchOutput>(
+                """{"topic_summary":"Summary","grounded_facts":[{"statement":"incomplete","citations":[""",
+                "Research", "length"));
+
+        Assert.Contains("output was truncated", error.Message);
+        Assert.Null(error.InnerException);
+    }
+
+    [Fact]
+    public void SingularCitationField_IsRejected()
+    {
+        const string json = """
+            {
+              "topic_summary": "Short summary.",
+              "grounded_facts": [{
+                "statement": "An unsupported claim.",
+                "citation": {"title": "Source", "url": "https://example.org"}
+              }]
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<ResearchOutput>(json, "Research", "stop"));
+
+        Assert.Contains("citation arrays", error.Message);
     }
 
     [Fact]
