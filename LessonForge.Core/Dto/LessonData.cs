@@ -327,17 +327,38 @@ public sealed class VerifiedLessonOutput
     public string Notes { get; set; } = "";
 }
 
-[Description("A flagged, insufficiently-supported claim.")]
+[Description("An actionable, AI-estimated educational review finding. IDs are assigned by the host.")]
 public sealed class VerificationFlag
 {
+    [JsonPropertyName("id")]
+    [Description("Leave empty. The application assigns a deterministic ID after review.")]
+    public string Id { get; set; } = "";
+
     [JsonPropertyName("claim")]
+    [Description("Brief name of the affected claim or concept, used to identify the root issue.")]
     public string Claim { get; set; } = "";
 
     [JsonPropertyName("issue")]
-    [Description("What is wrong or unverified about the claim.")]
+    [Description("Short explanation of the problem and why it matters for learners.")]
     public string Issue { get; set; } = "";
 
     [JsonPropertyName("severity")]
-    [Description("High, Medium, or Low.")]
+    [Description("Exactly High, Medium, Low, or Informational, according to the review rubric.")]
     public string Severity { get; set; } = "Medium";
+
+    [JsonPropertyName("category")]
+    [Description("One allowed snake_case educational review category.")]
+    public string Category { get; set; } = "";
+
+    [JsonPropertyName("location")]
+    [Description("S1, S2 etc. for a lesson section; Q1, Q2 etc. for a quiz question; or GENERAL.")]
+    public string Location { get; set; } = "";
+
+    [JsonPropertyName("recommendation")]
+    [Description("A concrete educator action that addresses this exact issue.")]
+    public string Recommendation { get; set; } = "";
+
+    [JsonPropertyName("evidence")]
+    [Description("Optional brief description of relevant supplied evidence or its absence; never invent URLs.")]
+    public string Evidence { get; set; } = "";
 }
