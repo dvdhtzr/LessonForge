@@ -8,8 +8,7 @@ namespace LessonForge.Core.Dto;
 // The data contracts the education crew passes along the pipeline:
 //   LessonRequest → Research → Lesson Plan → Quiz → Verified Lesson
 // Each agent reads the previous stage's output (and shared state) and produces the next.
-// JSON is snake_case with [Description] hints so the LLM binds structured output reliably
-// (same convention the Guild project uses in SharedFeatureData.cs).
+// JSON is snake_case with [Description] hints so the LLM binds structured output reliably.
 
 // ─────────────────────────── Request ───────────────────────────
 

@@ -1,12 +1,14 @@
 # LessonForge
 
+![CI](https://github.com/dvdhtzr/LessonForge/actions/workflows/ci.yml/badge.svg)
+
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
 a citation-backed multiple-choice quiz**, grounded in facts retrieved from **Wikipedia and its
 cited sources** via RAG.
 
-It reuses the patterns from the [Guild](https://github.com/dvdhtzr/Guild) project — a .NET 10 /
-**Microsoft Agent Framework (MAF)** multi-agent crew running against a local **Ollama** server — and
-adds a web API, a React frontend, and a retrieval pipeline.
+It is a standalone .NET 10 application: a multi-agent crew (built on the Microsoft Agent Framework)
+runs against a local Ollama server, behind a C# web API, with a React frontend and an in-process
+retrieval pipeline. Everything runs on your own machine — no cloud services and no API keys.
 
 ## Architecture
 
@@ -64,25 +66,41 @@ ollama serve
 **API** (listens on http://localhost:5174):
 
 ```bash
-dotnet run --project LessonForge/LessonForge.Api --launch-profile http
+dotnet run --project LessonForge.Api --launch-profile http
 ```
 
 **Frontend** (http://localhost:5173, proxies `/api` to the API):
 
 ```bash
-cd LessonForge/web
+cd web
 npm install
 npm run dev
 ```
 
 Open http://localhost:5173, enter a topic and age, and generate.
 
-## Tests
+## Validating locally
+
+Convenience scripts in `scripts/` (bash `*.sh` and PowerShell `*.ps1`) let you validate between
+steps. They need the .NET 10 SDK and Node.js; the tests run fully offline (no Ollama or network).
+
+| Script | What it does |
+|--------|--------------|
+| `scripts/build.sh` | Restore + build the solution (Release) |
+| `scripts/test.sh` | Run the xUnit unit tests |
+| `scripts/web.sh` | Install web deps + type-check and build the frontend |
+| `scripts/check.sh` | All of the above — run before pushing |
 
 ```bash
-dotnet test LessonForge/LessonForge.Tests
-cd LessonForge/web && npm run build   # type-checks the frontend
+./scripts/check.sh          # macOS / Linux
+pwsh scripts/check.ps1      # Windows / PowerShell
 ```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request to `main`: a
+**.NET** job (restore → build → test) and a **web** job (`npm ci` → build). The suite is offline, so
+CI needs no Ollama.
 
 ## Endpoints
 

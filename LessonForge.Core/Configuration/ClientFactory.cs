@@ -9,8 +9,8 @@ namespace LessonForge.Core.Configuration;
 
 /// <summary>
 /// Builds the chat clients and embedding generator the whole app runs on, all bound to a local
-/// Ollama server via its OpenAI-compatible API. Adapted from the Guild project's
-/// <c>ChatClientFactory</c>, extended for a dual-model setup (primary + fast chat) plus embeddings.
+/// Ollama server via its OpenAI-compatible API. Provides a dual-model setup (primary + fast chat)
+/// plus an embedding generator.
 ///
 /// Usable two ways:
 ///  - DI: register a single <see cref="ClientFactory"/> instance (see the API host) and inject it.

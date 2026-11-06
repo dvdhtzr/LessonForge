@@ -2,6 +2,3 @@ LessonForge
 Copyright 2026 dvdhtzr
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
-
-LessonForge reuses architectural patterns from the Guild project
-(https://github.com/dvdhtzr/Guild), which is also Apache-2.0 licensed.
