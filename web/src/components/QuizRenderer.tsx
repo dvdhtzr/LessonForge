@@ -1,4 +1,5 @@
 import type { QuizOutput } from '../types'
+import SourceLink from './SourceLink'
 
 export default function QuizRenderer({ quiz, mode }: { quiz: QuizOutput; mode: 'student' | 'teacher' }) {
   return (
@@ -21,7 +22,7 @@ export default function QuizRenderer({ quiz, mode }: { quiz: QuizOutput; mode: '
                   <strong>Sources:</strong>{' '}
                   {q.citations.map((c, k) => (
                     <span key={k}>
-                      <a href={c.url} target="_blank" rel="noreferrer">{c.title || c.url}</a>
+                      <SourceLink citation={c} compact />
                       {k < q.citations.length - 1 ? '; ' : ''}
                     </span>
                   ))}
