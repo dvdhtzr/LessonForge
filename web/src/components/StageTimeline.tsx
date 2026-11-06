@@ -1,16 +1,5 @@
 import type { StageStatus } from '../types'
-
-export const STAGES = [
-  { id: 'Research', role: 'Research Librarian', label: 'Gathering and citing sources', mark: 'R' },
-  { id: 'PerspectiveAnalysis', role: 'Perspective Analyst', label: 'Comparing evidence and interpretations', mark: 'P' },
-  { id: 'LessonPlanner', role: 'Curriculum Designer', label: 'Designing the lesson', mark: 'C' },
-  { id: 'QuizGenerator', role: 'Assessment Writer', label: 'Writing the quiz', mark: 'A' },
-  { id: 'FactCheck', role: 'Accuracy Editor', label: 'Checking claims and citations', mark: 'E' },
-] as const
-
-export function getStage(id: string | null | undefined) {
-  return STAGES.find((stage) => stage.id === id)
-}
+import { STAGES } from './stageDefinitions'
 
 export default function StageTimeline({ statuses, explorePerspectives = false }: {
   statuses: Record<string, StageStatus>
