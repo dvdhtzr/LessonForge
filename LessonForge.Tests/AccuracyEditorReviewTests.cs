@@ -22,6 +22,9 @@ public sealed class AccuracyEditorReviewTests
         Assert.Contains("\"notes\"", json);
         Assert.DoesNotContain("\"plan\"", json);
         Assert.DoesNotContain("\"quiz\"", json);
+        Assert.Contains("\"category\"", json);
+        Assert.Contains("\"location\"", json);
+        Assert.Contains("\"recommendation\"", json);
     }
 
     [Fact]
@@ -76,7 +79,15 @@ public sealed class AccuracyEditorReviewTests
         };
         var review = new FactCheckReviewOutput
         {
-            Flags = [new VerificationFlag { Claim = "Q1", Issue = "Needs further evidence", Severity = "Low" }],
+            Flags = [new VerificationFlag
+            {
+                Claim = "Quiz explanation",
+                Issue = "Needs further evidence",
+                Severity = "Low",
+                Category = "missing_citation",
+                Location = "Q1",
+                Recommendation = "Add a direct supporting reference."
+            }],
             CitationCoverage = 0.75,
             Notes = "Several claims have supporting sources."
         };
@@ -87,7 +98,9 @@ public sealed class AccuracyEditorReviewTests
         Assert.Equal("Educator's edited title", result.Plan.Title);
         Assert.Equal("Approved body", result.Plan.Sections[0].Body);
         Assert.Equal(0, result.Quiz.Questions[0].CorrectIndex);
-        Assert.Same(review.Flags, result.Flags);
+        Assert.Single(result.Flags);
+        Assert.StartsWith("LF-", result.Flags[0].Id);
+        Assert.NotSame(review.Flags, result.Flags);
         Assert.Equal(0.75, result.CitationCoverage);
         Assert.Equal(review.Notes, result.Notes);
     }
