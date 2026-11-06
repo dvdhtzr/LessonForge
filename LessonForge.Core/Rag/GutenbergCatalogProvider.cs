@@ -1,7 +1,6 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.Globalization;
-using System.IO.Compression;
 using System.Text;
 
 namespace LessonForge.Core.Rag;
@@ -17,7 +16,7 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
 {
     public const string ProviderId = "gutenberg-catalog";
     public const string FeedUrl =
-        "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz";
+        "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv";
 
     private static readonly SemaphoreSlim s_cacheLock = new(1, 1);
     private static readonly HashSet<string> s_stopWords = new(StringComparer.OrdinalIgnoreCase)
@@ -35,8 +34,7 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
 
     public string Id => ProviderId;
     public int MaxResults { get; init; } = 3;
-    public int MaxCompressedBytes { get; init; } = 12_000_000;
-    public int MaxDecompressedBytes { get; init; } = 45_000_000;
+    public int MaxDownloadBytes { get; init; } = 35_000_000;
     public TimeSpan CacheLifetime { get; init; } = TimeSpan.FromDays(7);
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(40);
 
@@ -48,15 +46,14 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
     {
         var terms = GetTerms(topic);
         if (terms.Count == 0) return [];
-        if (MaxResults is < 1 or > 8 || MaxCompressedBytes is < 1024 or > 30_000_000 ||
-            MaxDecompressedBytes is < 2048 or > 80_000_000 ||
+        if (MaxResults is < 1 or > 8 || MaxDownloadBytes is < 2048 or > 75_000_000 ||
             CacheLifetime <= TimeSpan.Zero || Timeout <= TimeSpan.Zero)
             throw new InvalidOperationException("Project Gutenberg catalog limits are invalid.");
 
-        var compressed = await ReadCatalogAsync(ct);
-        if (compressed is null) return [];
+        var bytes = await ReadCatalogAsync(ct);
+        if (bytes is null) return [];
 
-        var text = await DecompressAsync(compressed, ct);
+        var text = Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
         var entries = ParseEntries(text, ct);
         var ranked = entries
             .Select(entry => (Entry: entry, Score: Score(entry, terms, topic)))
@@ -102,7 +99,7 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
 
     private async Task<byte[]?> ReadCatalogAsync(CancellationToken ct)
     {
-        var path = Path.Combine(_cacheDirectory, "pg_catalog.csv.gz");
+        var path = Path.Combine(_cacheDirectory, "pg_catalog.csv");
         await s_cacheLock.WaitAsync(ct);
         try
         {
@@ -120,13 +117,12 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
                     response.RequestMessage?.RequestUri is not { } effective ||
                     effective.Scheme != Uri.UriSchemeHttps ||
                     !effective.Host.Equals("www.gutenberg.org", StringComparison.OrdinalIgnoreCase) ||
-                    effective.AbsolutePath != "/cache/epub/feeds/pg_catalog.csv.gz" ||
-                    response.Content.Headers.ContentLength > MaxCompressedBytes)
+                    effective.AbsolutePath != "/cache/epub/feeds/pg_catalog.csv" ||
+                    response.Content.Headers.ContentLength > MaxDownloadBytes)
                     return await ReadStaleIfPresentAsync(path, ct);
 
                 var mediaType = response.Content.Headers.ContentType?.MediaType;
-                if (mediaType is not (null or "application/gzip" or "application/x-gzip"
-                    or "application/octet-stream" or "binary/octet-stream"))
+                if (mediaType is not (null or "text/csv" or "application/csv" or "application/octet-stream" or "binary/octet-stream"))
                     return await ReadStaleIfPresentAsync(path, ct);
 
                 await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
@@ -135,12 +131,12 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
                 int read;
                 while ((read = await stream.ReadAsync(bytes, deadline.Token)) > 0)
                 {
-                    if (buffer.Length + read > MaxCompressedBytes)
+                    if (buffer.Length + read > MaxDownloadBytes)
                         return await ReadStaleIfPresentAsync(path, ct);
                     buffer.Write(bytes, 0, read);
                 }
                 var downloaded = buffer.ToArray();
-                if (downloaded.Length < 2 || downloaded[0] != 0x1f || downloaded[1] != 0x8b)
+                if (downloaded.Length < 64 || !Encoding.UTF8.GetString(downloaded.AsSpan(0, Math.Min(downloaded.Length, 512))).Contains("Text#", StringComparison.Ordinal))
                     return await ReadStaleIfPresentAsync(path, ct);
 
                 Directory.CreateDirectory(_cacheDirectory);
@@ -176,24 +172,6 @@ public sealed class GutenbergCatalogProvider(HttpClient http, string? cacheDirec
 
     private async Task<byte[]?> ReadStaleIfPresentAsync(string path, CancellationToken ct)
         => File.Exists(path) ? await File.ReadAllBytesAsync(path, ct) : null;
-
-    private async Task<string> DecompressAsync(byte[] compressed, CancellationToken ct)
-    {
-        if (compressed.Length > MaxCompressedBytes)
-            throw new InvalidDataException("Gutenberg catalog compressed input exceeds its limit.");
-        await using var input = new MemoryStream(compressed);
-        await using var gzip = new GZipStream(input, CompressionMode.Decompress);
-        using var output = new MemoryStream();
-        var bytes = new byte[16_384];
-        int read;
-        while ((read = await gzip.ReadAsync(bytes, ct)) > 0)
-        {
-            if (output.Length + read > MaxDecompressedBytes)
-                throw new InvalidDataException("Gutenberg catalog extracted input exceeds its limit.");
-            output.Write(bytes, 0, read);
-        }
-        return Encoding.UTF8.GetString(output.ToArray()).TrimStart('\uFEFF');
-    }
 
     private static List<BookEntry> ParseEntries(string content, CancellationToken ct)
     {
