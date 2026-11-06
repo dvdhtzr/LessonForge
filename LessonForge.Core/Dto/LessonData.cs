@@ -67,6 +67,35 @@ public sealed class CitationRef
 
 // ─────────────────────── Research stage ───────────────────────
 
+/// <summary>
+/// LLM-only output: keep the factual Research Librarian schema unchanged when
+/// the optional Perspective Analyst is switched on or off. The workflow envelope
+/// adds perspectives later, after the separate agent and educator approval.
+/// </summary>
+[Description("Source-grounded facts, without any model-authored perspective analysis.")]
+public sealed class ResearchDraftOutput
+{
+    [JsonPropertyName("topic_summary")]
+    public string TopicSummary { get; set; } = "";
+
+    [JsonPropertyName("grounded_facts")]
+    public List<GroundedFact> GroundedFacts { get; set; } = new();
+
+    [JsonPropertyName("queries_used")]
+    public List<string> QueriesUsed { get; set; } = new();
+
+    [JsonPropertyName("source_inventory")]
+    public List<CitationRef> SourceInventory { get; set; } = new();
+
+    public ResearchOutput ToResearchOutput() => new()
+    {
+        TopicSummary = TopicSummary,
+        GroundedFacts = GroundedFacts,
+        QueriesUsed = QueriesUsed,
+        SourceInventory = SourceInventory
+    };
+}
+
 [Description("The Research Librarian's grounded findings.")]
 public sealed class ResearchOutput
 {
