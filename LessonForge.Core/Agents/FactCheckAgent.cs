@@ -126,9 +126,10 @@ public static partial class FactCheckAgent
             // Persist the retrieved documents' provenance outside model-generated
             // DTOs. This is evidence inventory, not a declaration that every
             // document was quoted, cited or factually authoritative.
-            output.SourceRecords = new[] { session }
-                .Concat(rag.PerspectiveSession is { } perspectiveSession
-                    ? [perspectiveSession] : [])
+            var sourceSessions = new List<RetrievalSession> { session };
+            if (rag.PerspectiveSession is { } perspectiveSession)
+                sourceSessions.Add(perspectiveSession);
+            output.SourceRecords = sourceSessions
                 .SelectMany(s => s.Sources)
                 .GroupBy(s => s.Url, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
