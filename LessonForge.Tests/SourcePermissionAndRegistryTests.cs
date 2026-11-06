@@ -92,7 +92,7 @@ public sealed class SourcePermissionAndRegistryTests
         Assert.True(registry.Sources.Single(x => x.Id == "wikipedia-text").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "smithsonian").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "gutenberg").Enabled);
-        Assert.False(registry.Sources.Single(x => x.Id == "loc").Enabled);
+        Assert.False(registry.Sources.Single(x => x.Id == "loc-century-of-lawmaking").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "saylor").Enabled);
         Assert.False(registry.Sources.Single(x => x.Id == "usgs-earthquakes").Enabled);
         Assert.Throws<ArgumentException>(() =>
@@ -100,6 +100,59 @@ public sealed class SourcePermissionAndRegistryTests
                 new FakeProvider("usgs-earthquakes", [])]));
         Assert.Throws<ArgumentException>(() =>
             new SourceRegistry([new FakeProvider("unreviewed", [])]));
+    }
+
+    [Fact]
+    public void ScopedLoCCatalogEvidence_IsAllowedButArbitraryLoCContentIsNot()
+    {
+        var valid = new SourceDocument
+        {
+            Title = "LoC catalog: Congressional proceedings",
+            Url = "https://www.loc.gov/item/12345678/",
+            Text = "Library of Congress catalog descriptive note about a historical congressional record, not primary document text.",
+            ProviderId = "loc-century-of-lawmaking",
+            Kind = SourceKind.LocCongressionalCatalog,
+            CanonicalId = "12345678",
+            Rights = ReviewedSourceRights.LocCenturyOfLawmakingCatalog
+        };
+        Assert.True(SourcePermissionGate.Evaluate(valid).Allowed);
+        Assert.Equal("US-PD", valid.Rights?.LicenseId);
+
+        var unreviewed = new SourceDocument
+        {
+            Title = valid.Title, Url = "https://www.loc.gov/collections/unreviewed/",
+            Text = valid.Text, ProviderId = valid.ProviderId, Kind = valid.Kind,
+            Rights = valid.Rights
+        };
+        Assert.False(SourcePermissionGate.Evaluate(unreviewed).Allowed);
+
+        var wrongKind = new SourceDocument
+        {
+            Title = valid.Title, Url = valid.Url, Text = valid.Text,
+            ProviderId = valid.ProviderId, Kind = SourceKind.Reference,
+            Rights = valid.Rights
+        };
+        Assert.False(SourcePermissionGate.Evaluate(wrongKind).Allowed);
+
+        var blocked = new SourceDocument
+        {
+            Title = valid.Title, Url = valid.Url, Text = valid.Text,
+            ProviderId = valid.ProviderId, Kind = valid.Kind,
+            Rights = valid.Rights with { ExplicitAiProhibition = true }
+        };
+        Assert.False(SourcePermissionGate.Evaluate(blocked).Allowed);
+
+        var badPolicy = new SourceDocument
+        {
+            Title = valid.Title, Url = valid.Url, Text = valid.Text,
+            ProviderId = valid.ProviderId, Kind = valid.Kind,
+            Rights = valid.Rights with { PolicyUrl = "https://www.loc.gov/legal/" }
+        };
+        Assert.False(SourcePermissionGate.Evaluate(badPolicy).Allowed);
+
+        var registry = new SourceRegistry([
+            new FakeProvider("loc-century-of-lawmaking", [valid])]);
+        Assert.True(registry.Sources.Single(x => x.Id == "loc-century-of-lawmaking").Enabled);
     }
 
     [Fact]
