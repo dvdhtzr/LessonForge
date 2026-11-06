@@ -59,7 +59,7 @@ Install these prerequisites once:
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (the SDK, not just the runtime)
 - [Node.js 22.12+ or 24+](https://nodejs.org/)
-- [Ollama for Windows](https://ollama.com/download/windows); launch the Ollama application
+- [Ollama for Windows](https://ollama.com/download/windows); the startup script launches its service if needed
 - Git
 
 After installing the prerequisites, clone the repository and start it with
@@ -79,7 +79,7 @@ the API and Vite in separate terminals, waits until both are available, then
 opens **http://localhost:5173** automatically. Model downloads may require internet.
 
 If you prefer to run full local verification before starting, use
-`./scripts/setup.ps1` separately (PowerShell syntax: `.\scripts\setup.ps1`).
+`.\scripts\setup.ps1` separately.
 That script checks prerequisites, pulls models and runs build, xUnit, lint and
 frontend production-build checks. The startup script avoids running the entire
 verification gate on every launch.
