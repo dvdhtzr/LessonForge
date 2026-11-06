@@ -39,7 +39,7 @@ public static partial class LessonPlannerAgent
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient)
-        => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
 
     public sealed partial class LessonPlannerExecutor(AIAgent agent, RagContext rag) : Executor("LessonPlanner")
     {
@@ -72,8 +72,8 @@ public static partial class LessonPlannerAgent
                 Output structured JSON matching LessonPlanOutput.
                 """;
 
-            var response = await agent.RunAsync<LessonPlanOutput>(prompt, cancellationToken: cancellationToken);
-            var output = response.Result;
+            var output = await StructuredAgentOutput.RunAsync<LessonPlanOutput>(
+                agent, prompt, "LessonPlanner", cancellationToken);
 
             if (string.IsNullOrWhiteSpace(output.GradeBand))
                 output.GradeBand = gradeBand;
