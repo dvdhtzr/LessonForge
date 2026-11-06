@@ -1,4 +1,5 @@
 import type { LessonPlanOutput } from '../types'
+import SourceLink from './SourceLink'
 
 export default function PlanRenderer({ plan }: { plan: LessonPlanOutput }) {
   return (
@@ -44,8 +45,8 @@ export default function PlanRenderer({ plan }: { plan: LessonPlanOutput }) {
       {plan.citations?.length > 0 && (
         <>
           <h3>Sources</h3>
-          <ul>{plan.citations.map((c, i) => (
-            <li key={i}><a href={c.url} target="_blank" rel="noreferrer">{c.title || c.url}</a></li>
+          <ul className="source-list">{plan.citations.map((c, i) => (
+            <li key={i}><SourceLink citation={c} /></li>
           ))}</ul>
         </>
       )}
