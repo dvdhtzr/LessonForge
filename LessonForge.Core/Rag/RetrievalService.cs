@@ -143,19 +143,18 @@ public sealed class RetrievalService(
 
             if (exactArticle is null)
             {
-                progress?.Report($"No exact Wikipedia article found for named subject \"{topic}\"; refusing similar-name substitutions.");
-                if (requireEvidence)
-                    throw new InvalidOperationException(
-                        "No exact Wikipedia article could be verified for the requested named subject. " +
-                        "LessonForge refused to substitute a similarly named person or topic. " +
-                        "Try a more specific or alternative subject name.");
-                return new RetrievalSession(new InMemoryVectorIndex(embeddings), []);
+                // Other reviewed providers may contain an exact named-subject
+                // record even when Wikipedia does not. Allow those as evidence,
+                // but NEVER substitute a fuzzy Wikipedia hit.
+                progress?.Report($"No exact Wikipedia article for \"{topic}\"; checking reviewed providers for a full subject match.");
+                seedTitles = [];
             }
-
-            // For explicit named subjects, a single exact verified article is
-            // safer than expanding to a different person with a similar name.
-            progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
-            seedTitles = [exactArticle.Title];
+            else
+            {
+                // Never expand a named article into a similar person's biography.
+                progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
+                seedTitles = [exactArticle.Title];
+            }
         }
         else
         {
@@ -214,11 +213,12 @@ public sealed class RetrievalService(
             // A full two-word named topic is a strong identity signal. Do not
             // ingest catalog records matching only a surname or first name,
             // even when their provider's relevance score was high.
-            var twoPartName = namedSubject &&
-                topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2;
-            if (twoPartName &&
-                !source.Title.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                !source.Text.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase))
+            var needsExactSubject = namedSubject &&
+                (exactArticle is null ||
+                 topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2);
+            if (needsExactSubject &&
+                !TopicIdentity.MentionsSubject(source.Title, topic) &&
+                !TopicIdentity.MentionsSubject(source.Text, topic))
             {
                 progress?.Report($"Skipped {source.ProviderId} metadata: no full named-subject match.");
                 continue;
@@ -242,8 +242,11 @@ public sealed class RetrievalService(
         {
             if (requireEvidence)
                 throw new InvalidOperationException(
-                    "No rights-eligible source evidence could be retrieved. " +
-                    "The lesson cannot be generated from unsupported material.");
+                    namedSubject
+                        ? "No rights-eligible evidence identifies the requested named subject. " +
+                          "LessonForge refused to substitute a similarly named person or topic."
+                        : "No rights-eligible source evidence could be retrieved. " +
+                          "The lesson cannot be generated from unsupported material.");
 
             // No model input or embedding occurs when an optional discovery query
             // yields zero eligible documents. The caller reuses primary research
