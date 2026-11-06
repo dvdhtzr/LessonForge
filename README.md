@@ -1,8 +1,8 @@
 # LessonForge
 
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
-a citation-backed multiple-choice quiz**, grounded in facts retrieved from **Wikipedia and its
-cited sources** via RAG.
+a citation-backed multiple-choice quiz**, grounded in rights-eligible sources retrieved
+through a local RAG index (Wikipedia articles and, for earthquake topics, official USGS data).
 
 It is a standalone .NET 10 application: a multi-agent crew (built on the Microsoft Agent Framework)
 runs against a local Ollama server, behind a C# web API, with a React frontend and an in-process
@@ -20,13 +20,43 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 
 | Stage | Persona | Does |
 |-------|---------|------|
-| Research | Research Librarian | Searches Wikipedia (seed + closely-linked articles) + fetches freely-available cited references, chunks + embeds them into a per-run in-memory vector index, returns grounded facts with citations |
+| Research | Research Librarian | Retrieves Wikipedia articles and topic-relevant USGS earthquake events, rejects material lacking documented AI-use permission, then chunks/embeds rights-eligible sources in the per-run index |
 | *optional* | **Perspective Analyst** | When enabled, retrieves additional sources, identifies substantiated differing interpretations, or explicitly reports no substantive disagreement / insufficient evidence |
 | *gate* | — | Educator reviews/edits/approves grounded facts **and**, when enabled, the perspective analysis |
 | Lesson Planner | Curriculum Designer | Builds an age-calibrated plan: objectives, sections, activities, vocabulary |
 | *gate* | — | Educator reviews/edits/approves the plan |
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
 | Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
+
+### Source Registry (initial rollout)
+
+- **Reviewed paths:** Wikipedia Action API article plaintext (CC BY-SA 4.0 with
+  attribution and ShareAlike considerations), and USGS's official 4.5+ earthquake
+  GeoJSON feed (limited to structured event observations, not embedded media).
+  USGS is only called when a topic mentions earthquakes or seismology.
+- **Fail-closed rights gate:** source content enters embeddings/model prompts only
+  when a trusted adapter records the acquisition scope, license, policy URL,
+  review date and explicit automated-retrieval/retention/AI-processing permission.
+  Source legality, factual credibility, and topical relevance remain different
+  concepts. Only documented source metadata and hashes are persisted, not full
+  retrieved documents.
+- **Changed behavior:** Wikipedia's third-party external reference URLs are still
+  discovered but are **not fetched or indexed** until their individual rights are
+  established. Public readability alone is not permission for AI ingestion.
+- **Provenance:** the final lesson stores source provider, canonical ID and URL,
+  rights scope, policy, retrieval time and SHA-256 content hash. Teacher Markdown
+  and JSON exports contain this inventory. Source URLs produced by agents must
+  match the material actually retrieved in the run.
+- **Candidates requiring review:** Smithsonian Open Access, Library of Congress,
+  Project Gutenberg and Saylor University remain disabled; there is no bulk
+  ingestion or API-key requirement.
+- **Limits:** the USGS pilot provides recent earthquake examples, not a
+  replacement for historical context or scientific instruction. Citation URL
+  matching checks provenance, not passage-level support. Licensing notices and
+  downstream derivative-work obligations require further evaluation before
+  relying on the system for commercial publication.
+
+See [source architecture and source policy](docs/source-registry.md).
 
 ### Key design decisions
 
