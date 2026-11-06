@@ -106,7 +106,9 @@ public static partial class ResearchAgent
             var draft = await StructuredAgentOutput.RunAsync<ResearchDraftOutput>(
                 agent, prompt, "Research", cancellationToken);
             var output = draft.ToResearchOutput();
-            progress?.Report("Research report generated; preparing educator review.");
+            progress?.Report(request.ExplorePerspectives
+                ? "Research report generated; passing evidence to Perspective Analyst."
+                : "Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
             // The optional Perspective Analyst owns this field. Never accept speculative
