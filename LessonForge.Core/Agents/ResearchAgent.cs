@@ -45,12 +45,12 @@ public static partial class ResearchAgent
         entry is an object with a nonempty statement and a nonempty citations array.
         Do not wrap the results inside a "research" or "lesson" object.
         Do not produce interpretive perspectives; a separate agent handles them
-        only when the educator enables that feature. Set perspectives to null.
-        Output only valid JSON matching the ResearchOutput schema.
+        only when the educator enables that feature. Do not include a perspectives field.
+        Output only valid JSON matching the ResearchDraftOutput schema.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
-        => StructuredAgentOutput.CreateSchemaAgent<ResearchOutput>(
+        => StructuredAgentOutput.CreateSchemaAgent<ResearchDraftOutput>(
             chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class ResearchExecutor(
@@ -103,8 +103,9 @@ public static partial class ResearchAgent
                 """;
 
             progress?.Report("Asking the local model to assemble the research report…");
-            var output = await StructuredAgentOutput.RunAsync<ResearchOutput>(
+            var draft = await StructuredAgentOutput.RunAsync<ResearchDraftOutput>(
                 agent, prompt, "Research", cancellationToken);
+            var output = draft.ToResearchOutput();
             progress?.Report("Research report generated; preparing educator review.");
 
             // Authoritative source inventory comes from the index, not the model.
