@@ -160,6 +160,118 @@ public sealed class StructuredAgentOutputTests
     }
 
     [Fact]
+    public void AssessmentWriterSchema_ContainsRequiredQuestionFields()
+    {
+        var format = ChatResponseFormat.ForJsonSchema<QuizOutput>(
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var schema = Assert.IsType<ChatResponseFormatJson>(format).Schema;
+        Assert.True(schema.HasValue);
+        var json = schema.Value.GetRawText();
+
+        Assert.Contains("\"questions\"", json);
+        Assert.Contains("\"stem\"", json);
+        Assert.Contains("\"options\"", json);
+        Assert.Contains("\"correct_index\"", json);
+        Assert.Contains("\"explanation\"", json);
+        Assert.Contains("\"citations\"", json);
+    }
+
+    [Fact]
+    public void QuizWithoutQuestions_DiagnosesAbsentPropertyWithoutLeakingText()
+    {
+        const string response = """
+            {"title":"Private lesson","quiz":[{"stem":"A private question"}]}
+            """;
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<QuizOutput>(response, "QuizGenerator", "stop"));
+
+        Assert.Contains("questions (property absent)", error.Message);
+        Assert.DoesNotContain("Private lesson", error.Message);
+        Assert.DoesNotContain("A private question", error.Message);
+    }
+
+    [Fact]
+    public void QuizWithEmptyQuestions_DiagnosesEmptyArray()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<QuizOutput>(
+                """{"questions":[]}""", "QuizGenerator", "stop"));
+
+        Assert.Contains("questions (empty array)", error.Message);
+    }
+
+    [Fact]
+    public void QuizWithMissingQuestionFields_ReportsFieldPaths()
+    {
+        const string response = """
+            {
+              "questions":[
+                {"stem":"A question","options":["A","B"],"correct_index":5,"citations":[]},
+                {"stem":"Another question","options":["A","B"],"explanation":"Because."}
+              ]
+            }
+            """;
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<QuizOutput>(response, "QuizGenerator", "stop"));
+
+        Assert.Contains("questions[0].correct_index", error.Message);
+        Assert.Contains("questions[0].explanation", error.Message);
+        Assert.Contains("questions[0].citations", error.Message);
+        Assert.Contains("questions[1].correct_index", error.Message);
+    }
+
+    [Fact]
+    public void QuizWithAllRequiredFields_DeserializesSuccessfully()
+    {
+        const string response = """
+            {
+              "questions":[{
+                "stem":"What do plants need for photosynthesis?",
+                "options":["Light","Plastic","Iron","Salt"],
+                "correct_index":0,
+                "explanation":"Plants use light energy.",
+                "citations":[{"title":"Photosynthesis","url":"https://example.org/photosynthesis"}]
+              }]
+            }
+            """;
+
+        var quiz = StructuredAgentOutput.Parse<QuizOutput>(response, "QuizGenerator", "stop");
+        Assert.Single(quiz.Questions);
+        Assert.Equal(0, quiz.Questions[0].CorrectIndex);
+        Assert.Equal(4, quiz.Questions[0].Options.Count);
+
+        QuizGeneratorAgent.ValidateCounts(
+            quiz, new QuizConfig { QuestionCount = 1, OptionCount = 4 });
+    }
+
+    [Fact]
+    public void QuizCountValidation_RejectsMissingQuestionsOrAnswers()
+    {
+        var quiz = new QuizOutput
+        {
+            Questions = [
+                new QuizQuestion {
+                    Stem = "Question",
+                    Options = ["Yes", "No"],
+                    CorrectIndex = 0,
+                    Explanation = "Explanation",
+                    Citations = [new CitationRef { Title = "Source", Url = "https://example.org" }]
+                }
+            ]
+        };
+
+        var questionError = Assert.Throws<InvalidOperationException>(() =>
+            QuizGeneratorAgent.ValidateCounts(
+                quiz, new QuizConfig { QuestionCount = 2, OptionCount = 2 }));
+        Assert.Contains("2 were requested", questionError.Message);
+
+        var optionError = Assert.Throws<InvalidOperationException>(() =>
+            QuizGeneratorAgent.ValidateCounts(
+                quiz, new QuizConfig { QuestionCount = 1, OptionCount = 4 }));
+        Assert.Contains("4 were requested", optionError.Message);
+    }
+
+    [Fact]
     public void CurriculumDesignerSchema_ContainsRequiredWireFieldNames()
     {
         // Unlike ChatResponseFormat.Json, this sends an actual DTO schema to a
