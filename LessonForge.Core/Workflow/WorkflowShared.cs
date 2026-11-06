@@ -44,6 +44,9 @@ public static class LessonStateShared
 public sealed class RagContext
 {
     public RetrievalSession? Session { get; set; }
+
+    /// <summary>Additional retrieved citations used by the optional Perspective Analyst.</summary>
+    public RetrievalSession? PerspectiveSession { get; set; }
 }
 
 /// <summary>Maps an audience age to a human-readable grade band for lesson calibration.</summary>
