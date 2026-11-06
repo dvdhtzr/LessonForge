@@ -66,8 +66,8 @@ export default function RunView() {
   async function resolveGate(approved: boolean, edited?: unknown) {
     const g = gate
     if (!g || !runIdRef.current) return
-    setGate(null)
     await api.submitGate(runIdRef.current, g.requestId, approved, edited)
+    setGate(null)
     if (!approved) setAborted('You aborted the run.')
   }
 
@@ -99,6 +99,7 @@ export default function RunView() {
 
       {gate && (
         <GateReview
+          key={gate.requestId}
           gate={gate}
           onApprove={(edited) => resolveGate(true, edited)}
           onAbort={() => resolveGate(false)}

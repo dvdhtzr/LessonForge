@@ -176,6 +176,13 @@ and the Vite frontend; generate a lesson, watch the research and stage events, r
 both review gates, confirm the completed lesson is saved, and try a student and teacher
 export. This requires Ollama and access to Wikipedia/references.
 
+At the research review gate, verify that **all** grounded facts are readable, each shows
+a supporting citation link, and the full source inventory can be expanded. Approval is
+blocked if the received facts have missing statements or invalid citations; use **Edit**
+to inspect the original JSON. The API logs fact/statement/citation counts without logging
+private research content. A failed approval POST leaves the review dialog open rather than
+silently losing the decision.
+
 ## Hosted CI
 
 GitHub Actions CI is temporarily disabled because of an account billing issue. Local

@@ -11,12 +11,18 @@ export const api = {
   list: () => fetch('/api/lessons').then(json<LessonSummary[]>),
   get: (id: number) => fetch(`/api/lessons/${id}`).then(json<StoredLesson>),
 
-  submitGate: (runId: string, requestId: string, approved: boolean, payload?: unknown) =>
-    fetch(`/api/lessons/gate/${runId}`, {
+  submitGate: async (runId: string, requestId: string, approved: boolean, payload?: unknown): Promise<void> => {
+    const res = await fetch(`/api/lessons/gate/${runId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId, approved, payload }),
-    }),
+    })
+    if (!res.ok) {
+      throw new Error(res.status === 404
+        ? 'The review gate is no longer active. Start a new lesson run.'
+        : `Could not submit review decision (${res.status}).`)
+    }
+  },
 
   exportUrl: (id: number, format: 'md' | 'json' | 'pdf', audience: 'student' | 'teacher') =>
     `/api/lessons/${id}/export?format=${format}&audience=${audience}`,
