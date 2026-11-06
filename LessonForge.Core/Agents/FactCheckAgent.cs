@@ -18,25 +18,54 @@ public static partial class FactCheckAgent
     public const string AgentName = "AccuracyEditor";
 
     public const string AgentInstructions = """
-        You are a skeptical educational fact-checker. Verify existing lesson and quiz
-        claims against the supplied retrieved source excerpts and approved research.
-        Do not use general model memory to invent facts or references.
+        You are a skeptical educational Accuracy Editor. Audit an EXISTING educator-approved
+        lesson and quiz against supplied retrieved evidence and approved research.
+        Do NOT rewrite the plan, quiz, answers, or educator edits. Do not invent facts,
+        citations, URLs, certainty, or artificial historical/scientific controversy.
 
-        You are NOT the lesson author. Do not return a rewritten plan or quiz and do not
-        attempt to change answers, activities, citations or lesson text. Instead, flag
-        incorrect, unsupported, unverifiable or misleading claims for educator review.
-        Identify each issue by its original claim or numbered item (S1, Q1, etc.).
+        Return ONE small JSON object with exactly "flags", "citation_coverage", "notes".
+        Each flag has these properties:
+        - "id": "" (the host assigns its stable identifier).
+        - "claim": SHORT focal concept or specific claim, e.g. "visa running".
+          Use the same concise claim for warnings about the SAME root issue.
+        - "issue": concise explanation of why this is a problem for learners.
+        - "severity": exactly High, Medium, Low, or Informational.
+        - "category": exactly one of factual_accuracy, missing_citation,
+          unsupported_claim, misleading_wording, missing_prerequisite,
+          instructional_gap, assessment_alignment, age_appropriateness,
+          perspective_fairness, insufficient_evidence.
+        - "location": exactly S1/S2/etc for section, Q1/Q2/etc for question,
+          or GENERAL when no single item applies. Use supplied identifiers.
+        - "recommendation": one concrete, bounded educator action for this issue.
+        - "evidence": a short characterization of supplied source evidence or
+          its absence; leave "" when unavailable. Never invent a citation.
 
-        Output only a SMALL JSON object with exactly these top-level keys:
-        - "flags": an array of objects, each with nonempty "claim", "issue", and
-          "severity" (High, Medium, or Low). Return [] if nothing was flagged.
-        - "citation_coverage": a number from 0 to 1 estimating the fraction of
-          reviewed claims supported by supplied evidence. Do not invent precision.
-        - "notes": 1-3 sentences describing your review and any evidence limitations.
+        SEVERITY RUBRIC:
+        High: material factual error, seriously misleading teaching, invalid quiz
+        answer, or quiz testing an essential concept never introduced; educator
+        must review before classroom use.
+        Medium: meaningful omission, qualification, prerequisite or fairness gap
+        that may impair comprehension.
+        Low: minor wording/presentation issue or citation improvement where the
+        underlying content is otherwise supported.
+        Informational: optional enhancement, NOT a defect.
+        Do not elevate solely to sound cautious. Severity is a judgment, not
+        a statistical confidence measure.
 
-        Review each lesson section and quiz answer for source support; uncertainty is a
-        reason to flag a claim, not to assert it is true. Keep flags and notes concise,
-        finish the entire JSON object, and output no markdown or other keys.
+        CATEGORY RULES:
+        If a quiz asks about a concept the lesson never teaches, issue ONE
+        assessment_alignment finding at Q#, not separate S# and Q# warnings.
+        Use instructional_gap for teaching omissions not tied to an assessment;
+        missing_citation for traceability, unsupported_claim for evidence deficits,
+        and perspective_fairness only where credible interpretations are distorted.
+
+        One finding per root cause. Do not repeat an issue under multiple categories
+        or severities. Flag distinct problems separately even when in the same item.
+        Prioritize substantive defects. Return [] when none found.
+        "citation_coverage" is an AI-ESTIMATED 0..1 fraction of reviewed claims
+        supported by supplied evidence, NOT an audited metric. Do not invent precision.
+        "notes" should give 1-3 neutral sentences including evidence limitations.
+        Output complete JSON only, with no markdown, no extra top-level keys.
         """;
 
     public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
@@ -103,7 +132,7 @@ public static partial class FactCheckAgent
                 }
             }
 
-            var prompt = BuildReviewPrompt(plan, quiz, state.Research, evidence);
+            var prompt = BuildReviewPrompt(plan, quiz, state.Research, evidence, state.Request.AudienceAge);
             var review = await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
                 agent, prompt, "FactCheck", cancellationToken);
 
@@ -119,7 +148,7 @@ public static partial class FactCheckAgent
 
     /// <summary>Creates a bounded, read-only review request, never a reproduction task.</summary>
     public static string BuildReviewPrompt(
-        LessonPlanOutput plan, QuizOutput quiz, ResearchOutput? research, string evidence)
+        LessonPlanOutput plan, QuizOutput quiz, ResearchOutput? research, string evidence, int audienceAge = 0)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(quiz);
@@ -130,9 +159,14 @@ public static partial class FactCheckAgent
 
         var context = new StringBuilder();
         context.AppendLine($"LESSON: {Trim(plan.Title, 160)}");
+        context.AppendLine($"GRADE BAND: {Trim(plan.GradeBand, 90)}; AUDIENCE AGE: {audienceAge}");
         context.AppendLine("LEARNING OBJECTIVES:");
         foreach (var objective in plan.LearningObjectives.Take(8))
             context.AppendLine($"- {Trim(objective, 220)}");
+
+        context.AppendLine("TERMS ALREADY TAUGHT:");
+        foreach (var term in plan.Vocabulary.Take(12))
+            context.AppendLine($"- {Trim(term.Term, 65)}: {Trim(term.Definition, 110)}");
 
         context.AppendLine("APPROVED RESEARCH FACTS:");
         if (research is { GroundedFacts.Count: > 0 })
@@ -175,9 +209,11 @@ public static partial class FactCheckAgent
             {evidence}
 
             Return only a small JSON object with "flags", "citation_coverage", "notes".
-            Flags should identify original S# or Q# items and explain unsupported
-            claims. An empty flags array is acceptable only if no issues were found.
-            Never return "plan", "quiz", rewritten content or source excerpts.
+            Identify the affected S# or Q# exactly. Audit whether Q# tests concepts
+            introduced in the plan. Consolidate missing-taught-concept warnings into
+            one assessment_alignment finding at Q#, rather than duplicate warnings.
+            Apply the severity rubric and give specific educator recommendations.
+            No invented citations, repeated issues, or rewritten content.
             """;
     }
 
@@ -196,21 +232,16 @@ public static partial class FactCheckAgent
         if (approvedPlan.Sections is not { Count: > 0 } || quiz.Questions is not { Count: > 0 })
             throw new InvalidOperationException("Cannot finalize a lesson with empty plan or quiz content.");
 
-        if (review.Flags is null || string.IsNullOrWhiteSpace(review.Notes) ||
-            double.IsNaN(review.CitationCoverage) || double.IsInfinity(review.CitationCoverage) ||
-            review.CitationCoverage is < 0 or > 1 ||
-            review.Flags.Any(flag => flag is null ||
-                string.IsNullOrWhiteSpace(flag.Claim) ||
-                string.IsNullOrWhiteSpace(flag.Issue) ||
-                flag.Severity is not ("High" or "Medium" or "Low")))
-            throw new InvalidOperationException("Accuracy Editor returned incomplete or invalid review findings.");
+        // Validate against the actual approved plan and quiz. IDs and conservative
+        // duplicate grouping are host-owned, never model-generated.
+        var findings = AccuracyReviewPolicy.Prepare(review, approvedPlan, quiz);
 
         return new VerifiedLessonOutput
         {
             Plan = approvedPlan,
             Quiz = quiz,
             Perspectives = perspectives,
-            Flags = review.Flags,
+            Flags = findings,
             CitationCoverage = review.CitationCoverage,
             Notes = review.Notes
         };
