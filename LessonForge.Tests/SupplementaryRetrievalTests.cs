@@ -100,7 +100,9 @@ public sealed class SupplementaryRetrievalTests
         var service = CreateService(handler);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await service.BuildAsync("Earthquakes interpretations historical scholarly debates"));
+        {
+            await service.BuildAsync("Earthquakes interpretations historical scholarly debates");
+        });
 
         Assert.Contains("No rights-eligible source evidence", error.Message);
         Assert.Equal(1, handler.SupplementarySearches);
