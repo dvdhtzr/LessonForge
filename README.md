@@ -95,6 +95,29 @@ asset. The existing permission and provenance checks apply unchanged.
 
 See [source architecture and source policy](docs/source-registry.md).
 
+### Named-subject identity protection
+
+An explicit named topic such as **Carmen Carrozza** must not be silently
+replaced with a fuzzy Wikipedia search match such as **Jesús Carroza**.
+
+LessonForge now probes short exact Wikipedia article titles before ranked
+search results, including when a user types the title in lowercase. For
+explicitly named subjects, it accepts only the matching canonical title and
+does not automatically expand to other people's linked biographies. A failed
+direct lookup may search for the **same** exact title, but never chooses a
+similar-name Wikipedia result as a fallback. When Wikipedia cannot
+provide an exact match, other rights-reviewed providers may contribute only
+records that explicitly name the full requested subject. For two-part named
+topics, surname-only catalog matches are excluded even if Wikipedia matches.
+
+The Research Librarian also requires named-topic summaries to identify the
+requested subject. If a valid JSON response describes a different subject,
+it gets **one evidence-grounded, summary-only regeneration**, preserving the
+original citation-validated facts. If the replacement still names the wrong
+subject, the run stops before educator approval or lesson planning. This is
+a deterministic identity safeguard, not proof that every sentence or citation
+is factually accurate; educator review remains essential.
+
 ### Research-summary completeness and automatic repair
 
 The Research Librarian validates the `topic_summary` before any educator

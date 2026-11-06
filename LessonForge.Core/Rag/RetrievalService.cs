@@ -101,8 +101,66 @@ public sealed class RetrievalService(
         string topic, bool requireEvidence, IProgress<string>? progress,
         CancellationToken ct)
     {
-        progress?.Report($"Searching Wikipedia for \"{topic}\"…");
-        var seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+        var namedSubject = TopicIdentity.IsExplicitNamedSubject(topic);
+        SourceDocument? exactArticle = null;
+        IReadOnlyList<string> seedTitles;
+
+        // First try the requested Wikipedia title, including lowercase input.
+        // We only lock to the direct result when its canonical title actually
+        // matches the requested subject, never on fuzzy surname similarity.
+        if (TopicIdentity.IsShortTitleCandidate(topic))
+        {
+            var direct = await wikipedia.GetArticleAsync(topic, ct);
+            if (direct is not null && TopicIdentity.SameTitle(topic, direct.Title))
+            {
+                exactArticle = direct;
+                namedSubject = true;
+            }
+        }
+
+        if (namedSubject)
+        {
+            // Never allow a fuzzy title/surname hit to become the subject of a
+            // named-person or other explicitly named-entity lesson.
+            progress?.Report($"Looking up the exact Wikipedia subject \"{topic}\"…");
+
+            // An API title query can fail while the ordinary search still knows
+            // the exact spelling. Fall back only to EXACT matched titles, never
+            // to a different person that happens to rank highly.
+            if (exactArticle is null)
+            {
+                var titles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles + 4, ct);
+                foreach (var title in titles.Where(title => TopicIdentity.SameTitle(topic, title)))
+                {
+                    var candidate = await wikipedia.GetArticleAsync(title, ct);
+                    if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
+                    {
+                        exactArticle = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (exactArticle is null)
+            {
+                // Other reviewed providers may contain an exact named-subject
+                // record even when Wikipedia does not. Allow those as evidence,
+                // but NEVER substitute a fuzzy Wikipedia hit.
+                progress?.Report($"No exact Wikipedia article for \"{topic}\"; checking reviewed providers for a full subject match.");
+                seedTitles = [];
+            }
+            else
+            {
+                // Never expand a named article into a similar person's biography.
+                progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
+                seedTitles = [exactArticle.Title];
+            }
+        }
+        else
+        {
+            progress?.Report($"Searching Wikipedia for \"{topic}\"…");
+            seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+        }
 
         var documents = new List<SourceDocument>();
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -112,7 +170,7 @@ public sealed class RetrievalService(
         for (var i = 0; i < seedTitles.Count; i++)
         {
             var title = seedTitles[i];
-            var article = await wikipedia.GetArticleAsync(title, ct);
+            var article = namedSubject ? exactArticle : await wikipedia.GetArticleAsync(title, ct);
             if (article is not null && seenUrls.Add(article.Url))
             {
                 documents.Add(article);
@@ -120,7 +178,7 @@ public sealed class RetrievalService(
             }
 
             // Only expand linked articles from the primary (first) seed, to keep runs bounded.
-            if (i == 0 && _options.MaxLinkedArticles > 0)
+            if (!namedSubject && i == 0 && _options.MaxLinkedArticles > 0)
             {
                 var linked = await wikipedia.GetLinkedTitlesAsync(title, _options.MaxLinkedArticles * 2, ct);
                 foreach (var linkedTitle in linked.Take(_options.MaxLinkedArticles))
@@ -136,8 +194,11 @@ public sealed class RetrievalService(
 
             // Wikipedia's external links are discovery metadata, NOT automatic
             // consent to retrieve or ingest another publisher's full content.
-            var external = await wikipedia.GetExternalLinksAsync(title, 40, ct);
-            unreviewedReferenceCount += external.Count;
+            if (!namedSubject)
+            {
+                var external = await wikipedia.GetExternalLinksAsync(title, 40, ct);
+                unreviewedReferenceCount += external.Count;
+            }
         }
 
         if (unreviewedReferenceCount > 0)
@@ -148,8 +209,23 @@ public sealed class RetrievalService(
         // providers failing or returning unusable records cannot block Wikipedia.
         var optional = await _registry.RetrieveEligibleAsync(topic, progress, ct);
         foreach (var source in optional)
+        {
+            // A full two-word named topic is a strong identity signal. Do not
+            // ingest catalog records matching only a surname or first name,
+            // even when their provider's relevance score was high.
+            var needsExactSubject = namedSubject &&
+                (exactArticle is null ||
+                 topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2);
+            if (needsExactSubject &&
+                !TopicIdentity.MentionsSubject(source.Title, topic) &&
+                !TopicIdentity.MentionsSubject(source.Text, topic))
+            {
+                progress?.Report($"Skipped {source.ProviderId} metadata: no full named-subject match.");
+                continue;
+            }
             if (seenUrls.Add(source.Url))
                 documents.Add(source);
+        }
 
         // This is the final model-input boundary, regardless of which adapter
         // produced a document. No missing/unknown rights flow into embeddings.
@@ -166,8 +242,11 @@ public sealed class RetrievalService(
         {
             if (requireEvidence)
                 throw new InvalidOperationException(
-                    "No rights-eligible source evidence could be retrieved. " +
-                    "The lesson cannot be generated from unsupported material.");
+                    namedSubject
+                        ? "No rights-eligible evidence identifies the requested named subject. " +
+                          "LessonForge refused to substitute a similarly named person or topic."
+                        : "No rights-eligible source evidence could be retrieved. " +
+                          "The lesson cannot be generated from unsupported material.");
 
             // No model input or embedding occurs when an optional discovery query
             // yields zero eligible documents. The caller reuses primary research

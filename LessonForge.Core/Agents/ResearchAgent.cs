@@ -31,6 +31,8 @@ public static partial class ResearchAgent
         Produce:
         - topic_summary: a short, neutral, accurate overview of the topic,
           written as ONE complete sentence ending with a period.
+          For a named subject, include the EXACT requested name, never a
+          different person with a similar name.
           NEVER stop mid-sentence or leave a hanging preposition.
         - grounded_facts: 8-10 concise, one-sentence teachable facts. Each fact MUST have a
           "citations" (plural) ARRAY of 1-2 objects with "title" and "url", copied from
@@ -118,7 +120,9 @@ public static partial class ResearchAgent
                 supporting SOURCE excerpts. Set queries_used and source_inventory to [] because
                 the application populates these fields. Do not use "citation" (singular).
                 Use ONE complete, neutral sentence for topic_summary, ending with
-                a period. Do not output sentence fragments or trailing phrases
+                a period. Explicitly name the requested TOPIC in topic_summary;
+                do not summarize another person whose name resembles the topic.
+                Do not output sentence fragments or trailing phrases
                 (such as "derived from the concept of"). No markdown or extra commentary.
                 """;
 
@@ -149,15 +153,23 @@ public static partial class ResearchAgent
                         ALREADY RETRIEVED GROUNDED FACTS (do not edit):
                         {string.Join("\n", draft.GroundedFacts.Select(f => "- " + f.Statement))}
 
-                        The previous topic summary was incomplete. Write a NEW short,
-                        finished ONE-SENTENCE summary based ONLY on the sources and
-                        established facts above. Return only the topic_summary JSON field.
+                        The previous topic summary was incomplete or did not name
+                        the requested subject. Write a NEW short, finished ONE-SENTENCE
+                        summary that EXPLICITLY names the exact requested TOPIC
+                        based ONLY on the sources and established facts above.
+                        Never substitute someone with a similar name.
+                        Return only the topic_summary JSON field.
                         """;
                     var result = await StructuredAgentOutput.RunAsync<ResearchSummaryRepairOutput>(
                         summaryRepairAgent, repairPrompt, "ResearchSummaryRepair", token);
                     return result.TopicSummary;
                 },
-                progress, cancellationToken);
+                progress, cancellationToken,
+                expectedNamedSubject: session.Sources.Any(source =>
+                    source.ProviderId == "wikipedia-text" &&
+                    TopicIdentity.SameTitle(request.Topic, source.Title)) ||
+                    TopicIdentity.IsExplicitNamedSubject(request.Topic)
+                    ? request.Topic : null);
             var output = draft.ToResearchOutput();
             progress?.Report(request.ExplorePerspectives
                 ? "Research report generated; passing evidence to Perspective Analyst."
