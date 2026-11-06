@@ -11,6 +11,7 @@ export interface LessonRequest {
   topic: string
   audience_age: number
   audience_notes: string
+  explore_perspectives: boolean
   quiz_config: QuizConfig
 }
 
@@ -24,11 +25,33 @@ export interface GroundedFact {
   citations: CitationRef[]
 }
 
+export interface PerspectiveViewpoint {
+  name: string
+  interpretation: string
+  evidence_basis: string
+  limitations: string
+  citations: CitationRef[]
+}
+
+export type PerspectiveStatus =
+  | 'supported_disagreement'
+  | 'no_substantive_disagreement'
+  | 'insufficient_evidence'
+
+export interface PerspectiveAnalysisOutput {
+  status: PerspectiveStatus
+  perspectives: PerspectiveViewpoint[]
+  areas_of_agreement: string[]
+  evidence_limitations: string
+  discussion_questions: string[]
+}
+
 export interface ResearchOutput {
   topic_summary: string
   grounded_facts: GroundedFact[]
   queries_used: string[]
   source_inventory: CitationRef[]
+  perspectives?: PerspectiveAnalysisOutput | null
 }
 
 export interface LessonSection {
@@ -75,6 +98,7 @@ export interface VerificationFlag {
 export interface VerifiedLessonOutput {
   plan: LessonPlanOutput
   quiz: QuizOutput
+  perspectives?: PerspectiveAnalysisOutput | null
   flags: VerificationFlag[]
   citation_coverage: number
   notes: string
