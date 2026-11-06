@@ -105,14 +105,24 @@ public sealed class RetrievalService(
         SourceDocument? exactArticle = null;
         IReadOnlyList<string> seedTitles;
 
+        // First try the requested Wikipedia title, including lowercase input.
+        // We only lock to the direct result when its canonical title actually
+        // matches the requested subject, never on fuzzy surname similarity.
+        if (TopicIdentity.IsShortTitleCandidate(topic))
+        {
+            var direct = await wikipedia.GetArticleAsync(topic, ct);
+            if (direct is not null && TopicIdentity.SameTitle(topic, direct.Title))
+            {
+                exactArticle = direct;
+                namedSubject = true;
+            }
+        }
+
         if (namedSubject)
         {
             // Never allow a fuzzy title/surname hit to become the subject of a
             // named-person or other explicitly named-entity lesson.
             progress?.Report($"Looking up the exact Wikipedia subject \"{topic}\"…");
-            var candidate = await wikipedia.GetArticleAsync(topic, ct);
-            if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
-                exactArticle = candidate;
 
             // An API title query can fail while the ordinary search still knows
             // the exact spelling. Fall back only to EXACT matched titles, never
@@ -122,7 +132,7 @@ public sealed class RetrievalService(
                 var titles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles + 4, ct);
                 foreach (var title in titles.Where(title => TopicIdentity.SameTitle(topic, title)))
                 {
-                    candidate = await wikipedia.GetArticleAsync(title, ct);
+                    var candidate = await wikipedia.GetArticleAsync(title, ct);
                     if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
                     {
                         exactArticle = candidate;
@@ -200,8 +210,22 @@ public sealed class RetrievalService(
         // providers failing or returning unusable records cannot block Wikipedia.
         var optional = await _registry.RetrieveEligibleAsync(topic, progress, ct);
         foreach (var source in optional)
+        {
+            // A full two-word named topic is a strong identity signal. Do not
+            // ingest catalog records matching only a surname or first name,
+            // even when their provider's relevance score was high.
+            var twoPartName = namedSubject &&
+                topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2;
+            if (twoPartName &&
+                !source.Title.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                !source.Text.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                progress?.Report($"Skipped {source.ProviderId} metadata: no full named-subject match.");
+                continue;
+            }
             if (seenUrls.Add(source.Url))
                 documents.Add(source);
+        }
 
         // This is the final model-input boundary, regardless of which adapter
         // produced a document. No missing/unknown rights flow into embeddings.
