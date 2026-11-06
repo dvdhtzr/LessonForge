@@ -17,6 +17,7 @@ export default function RunView() {
   const [error, setError] = useState<string | null>(null)
   const [aborted, setAborted] = useState<string | null>(null)
   const [runConnected, setRunConnected] = useState(false)
+  const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
 
   useEffect(() => {
