@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -19,7 +18,7 @@ public sealed class GutenbergCatalogProviderTests
         "8081,Text,2010-02-02,\"Poems, Songs and Sonnets\",en,\"Author, Imaginary\",Poetry,PR,Poetry\r\n";
 
     private sealed class Handler(byte[] body, HttpStatusCode status = HttpStatusCode.OK,
-        string mediaType = "application/gzip", string? finalUrl = null,
+        string mediaType = "text/csv", string? finalUrl = null,
         bool omitRequest = false) : HttpMessageHandler
     {
         public int Calls { get; private set; }
@@ -54,22 +53,12 @@ public sealed class GutenbergCatalogProviderTests
         }
     }
 
-    private static byte[] Gzip(string text)
-    {
-        using var buffer = new MemoryStream();
-        using (var gzip = new GZipStream(buffer, CompressionLevel.Optimal, leaveOpen: true))
-        {
-            var bytes = Encoding.UTF8.GetBytes(text);
-            gzip.Write(bytes, 0, bytes.Length);
-        }
-        return buffer.ToArray();
-    }
 
     [Fact]
     public async Task OfficialCsv_ProducesBibliographicSourcesButNeverInventsBookTextRights()
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip(Fixture));
+        var handler = new Handler(Encoding.UTF8.GetBytes(Fixture));
         var provider = new GutenbergCatalogProvider(new HttpClient(handler), cache.Path);
         var books = await provider.RetrieveAsync("Protestant Reformation");
 
@@ -93,7 +82,7 @@ public sealed class GutenbergCatalogProviderTests
     {
         using var cache = new TempCache();
         var csv = Fixture + "5555,Text,2001-01-01,\"French Revolution, Volume 2\",en,\"Fiction, A. \"\"Strange\"\" Writer\",\"France -- History, 1789\",DC,\"French History\"\r\n";
-        var handler = new Handler(Gzip(csv));
+        var handler = new Handler(Encoding.UTF8.GetBytes(csv));
         var records = await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
         {
             MaxResults = 3
@@ -109,7 +98,7 @@ public sealed class GutenbergCatalogProviderTests
     public async Task CachedFeedIsReusedAcrossProviderInstances_WithoutAnotherDownload()
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip(Fixture));
+        var handler = new Handler(Encoding.UTF8.GetBytes(Fixture));
         var first = new GutenbergCatalogProvider(new HttpClient(handler), cache.Path);
         Assert.Single(await first.RetrieveAsync("Pride and Prejudice"));
         Assert.Equal(1, handler.Calls);
@@ -117,14 +106,14 @@ public sealed class GutenbergCatalogProviderTests
         var second = new GutenbergCatalogProvider(new HttpClient(handler), cache.Path);
         Assert.Single(await second.RetrieveAsync("Pride and Prejudice"));
         Assert.Equal(1, handler.Calls);
-        Assert.True(File.Exists(System.IO.Path.Combine(cache.Path, "pg_catalog.csv.gz")));
+        Assert.True(File.Exists(System.IO.Path.Combine(cache.Path, "pg_catalog.csv")));
     }
 
     [Fact]
     public async Task UnsupportedOrIrrelevantTopicsDoNotContributeEbooks()
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip(Fixture));
+        var handler = new Handler(Encoding.UTF8.GetBytes(Fixture));
         var provider = new GutenbergCatalogProvider(new HttpClient(handler), cache.Path);
         Assert.Empty(await provider.RetrieveAsync("and the for"));
         Assert.Equal(0, handler.Calls);
@@ -134,24 +123,24 @@ public sealed class GutenbergCatalogProviderTests
     }
 
     [Theory]
-    [InlineData("https://evil.example/cache/epub/feeds/pg_catalog.csv.gz")]
-    [InlineData("http://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz")]
+    [InlineData("https://evil.example/cache/epub/feeds/pg_catalog.csv")]
+    [InlineData("http://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv")]
     [InlineData("https://www.gutenberg.org/ebooks/")]
     public async Task RedirectedOrDowngradedFeed_IsRejected(string finalUrl)
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip(Fixture), finalUrl: finalUrl);
+        var handler = new Handler(Encoding.UTF8.GetBytes(Fixture), finalUrl: finalUrl);
         var result = await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
             .RetrieveAsync("Pride and Prejudice");
         Assert.Empty(result);
-        Assert.False(File.Exists(System.IO.Path.Combine(cache.Path, "pg_catalog.csv.gz")));
+        Assert.False(File.Exists(System.IO.Path.Combine(cache.Path, "pg_catalog.csv")));
     }
 
     [Fact]
     public async Task MissingEffectiveRequestMetadataFailsClosed()
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip(Fixture), omitRequest: true);
+        var handler = new Handler(Encoding.UTF8.GetBytes(Fixture), omitRequest: true);
         Assert.Empty(await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
             .RetrieveAsync("Protestant Reformation"));
     }
@@ -160,33 +149,32 @@ public sealed class GutenbergCatalogProviderTests
     public async Task IncorrectContentTypeOrStatus_IsNotCatalogEvidence()
     {
         using var cache = new TempCache();
-        var html = new Handler(Gzip(Fixture), mediaType: "text/html");
+        var html = new Handler(Encoding.UTF8.GetBytes(Fixture), mediaType: "text/html");
         Assert.Empty(await new GutenbergCatalogProvider(new HttpClient(html), cache.Path)
             .RetrieveAsync("Protestant Reformation"));
-        var unavailable = new Handler(Gzip(Fixture), status: HttpStatusCode.TooManyRequests);
+        var unavailable = new Handler(Encoding.UTF8.GetBytes(Fixture), status: HttpStatusCode.TooManyRequests);
         Assert.Empty(await new GutenbergCatalogProvider(new HttpClient(unavailable), cache.Path)
             .RetrieveAsync("Protestant Reformation"));
     }
 
     [Fact]
-    public async Task CompressedAndExpandedDataCaps_AreEnforced()
+    public async Task CsvDownloadSizeCap_AndSchemaValidation_AreEnforced()
     {
         using var cache = new TempCache();
-        var oversized = new Handler(Gzip(Fixture + new string('x', 7000)));
+        var oversized = new Handler(Encoding.UTF8.GetBytes(Fixture + new string('x', 7000)));
         var result = await new GutenbergCatalogProvider(new HttpClient(oversized), cache.Path)
         {
-            MaxCompressedBytes = 1024
+            MaxDownloadBytes = 2048
         }.RetrieveAsync("Protestant Reformation");
         Assert.Empty(result);
 
         using var cache2 = new TempCache();
-        var normal = new Handler(Gzip(Fixture));
+        var invalid = new Handler(Encoding.UTF8.GetBytes(
+            "ID,Title\n1,A book not following the official Gutenberg catalog schema\n"));
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
         {
-            await new GutenbergCatalogProvider(new HttpClient(normal), cache2.Path)
-            {
-                MaxDecompressedBytes = 2048
-            }.RetrieveAsync("Protestant Reformation");
+            await new GutenbergCatalogProvider(new HttpClient(invalid), cache2.Path)
+                .RetrieveAsync("Protestant Reformation");
         });
     }
 
@@ -194,7 +182,7 @@ public sealed class GutenbergCatalogProviderTests
     public async Task MissingRequiredColumnsCannotBecomeSourceEvidence()
     {
         using var cache = new TempCache();
-        var handler = new Handler(Gzip("ID,Title\n1,Unknown Book\n"));
+        var handler = new Handler(Encoding.UTF8.GetBytes("ID,Title\n1,Unknown Book\n"));
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
         {
             await new GutenbergCatalogProvider(new HttpClient(handler), cache.Path)
