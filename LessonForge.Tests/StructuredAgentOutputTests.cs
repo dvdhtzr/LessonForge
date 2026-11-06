@@ -114,7 +114,7 @@ public sealed class StructuredAgentOutputTests
     [Fact]
     public void ResearchSchema_RequiresGroundedFactsAndCitationFields()
     {
-        var format = ChatResponseFormat.ForJsonSchema<ResearchOutput>(
+        var format = ChatResponseFormat.ForJsonSchema<ResearchDraftOutput>(
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var schema = Assert.IsType<ChatResponseFormatJson>(format).Schema;
         Assert.True(schema.HasValue);
@@ -125,6 +125,7 @@ public sealed class StructuredAgentOutputTests
         Assert.Contains("\"statement\"", json);
         Assert.Contains("\"citations\"", json);
         Assert.Contains("\"url\"", json);
+        Assert.DoesNotContain("\"perspectives\"", json);
     }
 
     [Fact]
