@@ -1,0 +1,42 @@
+# .NET
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+artifacts/
+**/publish/
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+
+# Node / Vite
+node_modules/
+dist/
+npm-debug.log*
+
+# Local SQLite data
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json

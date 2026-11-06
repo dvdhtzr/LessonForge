@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="LessonForge.Api/LessonForge.Api.csproj" />
+  <Project Path="LessonForge.Core/LessonForge.Core.csproj" />
+  <Project Path="LessonForge.Tests/LessonForge.Tests.csproj" />
+</Solution>
