@@ -1,7 +1,5 @@
 # LessonForge
 
-![CI](https://github.com/dvdhtzr/LessonForge/actions/workflows/ci.yml/badge.svg)
-
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
 a citation-backed multiple-choice quiz**, grounded in facts retrieved from **Wikipedia and its
 cited sources** via RAG.
@@ -79,28 +77,46 @@ npm run dev
 
 Open http://localhost:5173, enter a topic and age, and generate.
 
-## Validating locally
+## Validating locally (required before merging)
 
-Convenience scripts in `scripts/` (bash `*.sh` and PowerShell `*.ps1`) let you validate between
-steps. They need the .NET 10 SDK and Node.js; the tests run fully offline (no Ollama or network).
+LessonForge uses **local verification** while GitHub Actions is unavailable. On a development
+machine with the .NET 10 SDK, Node.js and npm, run the complete gate before merging a PR.
+The unit tests use fixtures/fakes; they do not need a running Ollama server or live Wikipedia.
+Dependency restore/install may still require internet access.
 
-| Script | What it does |
-|--------|--------------|
-| `scripts/build.sh` | Restore + build the solution (Release) |
-| `scripts/test.sh` | Run the xUnit unit tests |
-| `scripts/web.sh` | Install web deps + type-check and build the frontend |
-| `scripts/check.sh` | All of the above — run before pushing |
+**Windows / PowerShell** (run from the repository root):
 
-```bash
-./scripts/check.sh          # macOS / Linux
-pwsh scripts/check.ps1      # Windows / PowerShell
+```powershell
+.\scripts\check.ps1
 ```
 
-## CI
+**macOS / Linux**:
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request to `main`: a
-**.NET** job (restore → build → test) and a **web** job (`npm ci` → build). The suite is offline, so
-CI needs no Ollama.
+```bash
+./scripts/check.sh
+```
+
+| Script | Validation |
+|--------|------------|
+| `scripts/build.ps1` | Build API and xUnit projects in Release mode |
+| `scripts/test.ps1` | Run all xUnit tests |
+| `scripts/web.ps1` | Install locked frontend dependencies, lint, type-check, build |
+| `scripts/check.ps1` | Run the complete local gate; fail on any nonzero .NET/npm exit |
+
+The `*.sh` equivalents run the same checks. A successful check prints
+`==> All local checks passed.` and must not do so if a command fails.
+
+**Live application smoke test (separate from the automated gate):** Start Ollama, the API,
+and the Vite frontend; generate a lesson, watch the research and stage events, respond to
+both review gates, confirm the completed lesson is saved, and try a student and teacher
+export. This requires Ollama and access to Wikipedia/references.
+
+## Hosted CI
+
+GitHub Actions CI is temporarily disabled because of an account billing issue. Local
+verification is the merge gate until hosted CI is restored. Record local check results
+in the pull request. If GitHub branch protection or a ruleset requires a legacy CI
+status check, remove that requirement in GitHub repository settings separately.
 
 ## Endpoints
 
