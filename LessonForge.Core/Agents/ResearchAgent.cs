@@ -29,9 +29,13 @@ public static partial class ResearchAgent
 
         Produce:
         - topic_summary: a short, neutral, accurate overview of the topic.
-        - grounded_facts: 8-15 concise, teachable facts. Each fact MUST include citations whose URLs
-          come from the provided sources that actually support it.
-        - queries_used: the aspects of the topic you focused on.
+        - grounded_facts: 8-10 concise, one-sentence teachable facts. Each fact MUST have a
+          "citations" (plural) ARRAY of 1-2 objects with "title" and "url", copied from
+          the supplied supporting SOURCE excerpts. Never use a singular "citation" field.
+        - queries_used: an empty array (the application supplies its actual queries).
+        - source_inventory: an empty array (the application supplies its verified source inventory).
+        Keep topic_summary to 1-2 sentences. Minimize verbosity; complete the entire JSON
+        object before stopping.
 
         Be factual and precise. Prefer foundational, widely-agreed facts over trivia. You trust
         encyclopedic and primary sources and cite everything.
@@ -39,8 +43,8 @@ public static partial class ResearchAgent
         Output only valid JSON matching the ResearchOutput schema.
         """;
 
-    public static AIAgent CreateAgent(IChatClient chatClient)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
+    public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class ResearchExecutor(
         AIAgent agent, RetrievalService retrieval, RagContext rag, IProgress<string>? progress = null)
@@ -67,7 +71,12 @@ public static partial class ResearchAgent
                 $"{request.Topic} examples and process"
             };
             progress?.Report("Searching the indexed sources for grounded facts…");
-            var evidence = await RagPrompt.GatherEvidenceAsync(session, queries, ct: cancellationToken);
+            // Keep the research prompt bounded for Ollama's common 4K local context.
+            // Long-form research should use a larger configured model context or a
+            // multi-pass evidence synthesis step rather than silently stuffing more chunks.
+            var evidence = await RagPrompt.GatherEvidenceAsync(
+                session, queries, perQuery: 3, maxSnippets: 8, maxCharsPerSnippet: 750,
+                ct: cancellationToken);
 
             var prompt = $"""
                 Gather grounded facts about this topic for a lesson aimed at age {request.AudienceAge}.
@@ -77,8 +86,13 @@ public static partial class ResearchAgent
                 SOURCES (use only these; cite by the URL shown):
                 {evidence}
 
-                Produce topic_summary, 8-15 grounded_facts each with citations drawn from the sources
-                above, and queries_used. Output structured JSON.
+                Produce 8-10 concise grounded_facts. Return only a single complete JSON object,
+                with exactly these top-level keys: topic_summary, grounded_facts, queries_used,
+                source_inventory. Each grounded_facts item must have "statement" and "citations";
+                "citations" must be an array of objects with "title" and "url" from the
+                supporting SOURCE excerpts. Set queries_used and source_inventory to [] because
+                the application populates these fields. Do not use "citation" (singular).
+                Use a one- or two-sentence topic_summary. No markdown or extra commentary.
                 """;
 
             progress?.Report("Asking the local model to assemble the research report…");

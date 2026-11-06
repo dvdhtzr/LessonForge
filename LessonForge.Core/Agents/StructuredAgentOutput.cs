@@ -20,13 +20,14 @@ public static class StructuredAgentOutput
     /// Use the MAF chat-client agent, but explicitly request Ollama JSON mode and
     /// no separate reasoning channel for these schema-shaped tasks.
     /// </summary>
-    public static AIAgent CreateAgent(IChatClient chat, string name, string instructions)
+    public static AIAgent CreateAgent(IChatClient chat, string name, string instructions, int maxOutputTokens)
         => chat.AsAIAgent(new ChatClientAgentOptions
         {
             Name = name,
             ChatOptions = new ChatOptions
             {
                 Instructions = instructions,
+                MaxOutputTokens = maxOutputTokens,
                 ResponseFormat = ChatResponseFormat.Json,
                 Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None }
             }
@@ -56,6 +57,15 @@ public static class StructuredAgentOutput
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
 
+        // A model that reports "length" exhausted its generation budget. Even a
+        // syntactically valid prefix must not be accepted as a complete lesson.
+        if (string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"{stage} output was truncated after {text?.Length ?? 0} characters " +
+                "(finish reason: length). The generation hit a token limit. Check " +
+                "LessonForge:Llm:MaxOutputTokens and Ollama's allocated context window " +
+                "(`ollama ps`); incomplete JSON is never accepted.");
+
         if (string.IsNullOrWhiteSpace(text))
         {
             throw new InvalidOperationException(
@@ -80,7 +90,13 @@ public static class StructuredAgentOutput
         var invalid = value switch
         {
             ResearchOutput research =>
-                string.IsNullOrWhiteSpace(research.TopicSummary) || research.GroundedFacts is not { Count: > 0 },
+                string.IsNullOrWhiteSpace(research.TopicSummary) ||
+                research.GroundedFacts is not { Count: > 0 } ||
+                research.GroundedFacts.Any(f =>
+                    string.IsNullOrWhiteSpace(f.Statement) ||
+                    f.Citations is not { Count: > 0 } ||
+                    f.Citations.Any(c => string.IsNullOrWhiteSpace(c.Title) ||
+                                         string.IsNullOrWhiteSpace(c.Url))),
             LessonPlanOutput plan =>
                 string.IsNullOrWhiteSpace(plan.Title) || plan.Sections is not { Count: > 0 },
             QuizOutput quiz =>
@@ -93,7 +109,7 @@ public static class StructuredAgentOutput
 
         if (invalid)
             throw new InvalidOperationException(
-                $"{stage} returned valid JSON but omitted required lesson content. " +
+                $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
                 "The result was rejected rather than treating an empty payload as successful.");
 
         return value;

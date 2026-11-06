@@ -30,11 +30,12 @@ public static class LessonWorkflow
     {
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
+        var maxOutputTokens = clients.Options.MaxOutputTokens;
 
-        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat), retrieval, rag, researchProgress);
-        var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat), rag);
-        var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat), rag);
-        var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat), rag);
+        var research = new ResearchAgent.ResearchExecutor(ResearchAgent.CreateAgent(chat, maxOutputTokens), retrieval, rag, researchProgress);
+        var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat, maxOutputTokens), rag);
+        var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat, maxOutputTokens), rag);
+        var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat, maxOutputTokens), rag);
 
         if (!interactive)
         {

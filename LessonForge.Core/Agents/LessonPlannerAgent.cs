@@ -38,8 +38,8 @@ public static partial class LessonPlannerAgent
         Output only valid JSON matching the LessonPlanOutput schema.
         """;
 
-    public static AIAgent CreateAgent(IChatClient chatClient)
-        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions);
+    public static AIAgent CreateAgent(IChatClient chatClient, int maxOutputTokens)
+        => StructuredAgentOutput.CreateAgent(chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
     public sealed partial class LessonPlannerExecutor(AIAgent agent, RagContext rag) : Executor("LessonPlanner")
     {

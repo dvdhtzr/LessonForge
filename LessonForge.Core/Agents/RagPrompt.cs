@@ -16,7 +16,7 @@ internal static class RagPrompt
     /// </summary>
     public static async Task<string> GatherEvidenceAsync(
         RetrievalSession session, IEnumerable<string> queries, int perQuery = 5, int maxSnippets = 18,
-        CancellationToken ct = default)
+        int maxCharsPerSnippet = 1200, CancellationToken ct = default)
     {
         var seen = new HashSet<string>();
         var picked = new List<ScoredChunk>();
@@ -37,7 +37,7 @@ internal static class RagPrompt
         {
             var c = top[i].Chunk;
             sb.AppendLine($"[{i + 1}] SOURCE: {c.SourceTitle} — {c.SourceUrl}");
-            sb.AppendLine(Trim(c.Text, 1200));
+            sb.AppendLine(Trim(c.Text, maxCharsPerSnippet));
             sb.AppendLine();
         }
 
