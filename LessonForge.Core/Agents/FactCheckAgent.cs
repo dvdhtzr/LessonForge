@@ -84,8 +84,11 @@ public static partial class FactCheckAgent
                     "Accuracy Editor is missing the educator-approved perspective analysis.");
             if (approvedPerspectives is not null)
             {
+                var verifiedSources = RagPrompt.InventoryCitations(session);
+                if (rag.PerspectiveSession is { } indexedPerspectives)
+                    verifiedSources.AddRange(RagPrompt.InventoryCitations(indexedPerspectives));
                 PerspectiveAnalysisValidator.Validate(
-                    approvedPerspectives, state.Research!.SourceInventory);
+                    approvedPerspectives, verifiedSources);
                 if (rag.PerspectiveSession is { } additional)
                 {
                     var perspectiveQueries = approvedPerspectives.Perspectives
