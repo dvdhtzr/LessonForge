@@ -131,6 +131,21 @@ public static class ReviewedSourceRights
         AutomatedAccessPermitted = true
     };
 
+    public static SourceRights GutenbergCatalogMetadata => new()
+    {
+        LicenseId = "PG-CATALOG-PD",
+        PolicyUrl = "https://www.gutenberg.org/policy/robot_access.html",
+        ReviewedOn = new DateOnly(2026, 11, 6),
+        Scope = "Only the official Project Gutenberg pg_catalog.csv.gz machine-readable catalog metadata; no ebook text, third-party images, copyright-restricted works or use of the trademark as product branding",
+        Attribution = "Project Gutenberg catalog; original ebook landing page and listed author",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
+        MayReproduceExcerpts = true,
+        MayRedistribute = true,
+        AutomatedAccessPermitted = true
+    };
+
     public static SourceRights LocCenturyOfLawmakingCatalog => new()
     {
         LicenseId = "US-PD",
