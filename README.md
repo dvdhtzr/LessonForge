@@ -138,15 +138,20 @@ sources, but local LLM inference does not require a paid API.
 
 ### Reliable structured outputs
 
-The Research Librarian and Curriculum Designer explicitly request **JSON schema**
-output from Ollama. The Assessment Writer and Accuracy Editor still request JSON
-mode. All four agents disable separate reasoning output for structured tasks.
-Rather than accessing `AgentResponse<T>.Result` directly, LessonForge reads
-the final response, deserializes the expected DTO, and rejects missing, empty,
-or otherwise incomplete results with stage-specific diagnostics. Research
-failures distinguish a missing `grounded_facts` field from an empty array without
-logging generated source content. These checks enforce structure, not factual
-correctness; the Accuracy Editor and educator review remain necessary.
+The Research Librarian, Curriculum Designer, and Assessment Writer explicitly
+request **JSON schema** output from Ollama. The Accuracy Editor still requests
+JSON mode. All four agents disable separate reasoning output for structured
+tasks. Rather than accessing `AgentResponse<T>.Result` directly, LessonForge
+reads the final response, deserializes the expected DTO, and rejects missing,
+empty or otherwise incomplete results with stage-specific diagnostics.
+
+The Assessment Writer validates every question's stem, options, correct-answer
+index, explanation, and supporting citations. It also enforces the educator's
+requested number of questions and answer choices, even when a model returns
+an otherwise valid JSON object. Missing `questions` and explicit empty arrays
+produce distinct diagnostics without logging generated source content. These
+checks enforce structure, not factual correctness; the Accuracy Editor and
+educator review remain necessary.
 
 This avoids depending on how a model exposes its internal reasoning or final
 answer. The committed Gemma 4 configuration has already reached the research
