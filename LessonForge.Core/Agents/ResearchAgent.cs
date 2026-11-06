@@ -71,8 +71,11 @@ public static partial class ResearchAgent
                 $"{request.Topic} examples and process"
             };
             progress?.Report("Searching the indexed sources for grounded facts…");
+            // Keep the research prompt bounded for Ollama's common 4K local context.
+            // Long-form research should use a larger configured model context or a
+            // multi-pass evidence synthesis step rather than silently stuffing more chunks.
             var evidence = await RagPrompt.GatherEvidenceAsync(
-                session, queries, perQuery: 3, maxSnippets: 9, maxCharsPerSnippet: 850,
+                session, queries, perQuery: 3, maxSnippets: 8, maxCharsPerSnippet: 750,
                 ct: cancellationToken);
 
             var prompt = $"""
