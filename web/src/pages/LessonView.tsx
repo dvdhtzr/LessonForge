@@ -48,17 +48,18 @@ export default function LessonView() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Accuracy review</h3>
         <p>
-          Citation coverage:{' '}
+          AI-estimated citation coverage:{' '}
           <span className={`pill ${coverage >= 80 ? 'good' : coverage >= 50 ? 'warn' : 'bad'}`}>{coverage}%</span>
         </p>
         {result.notes && <p className="muted">{result.notes}</p>}
+        <p className="muted">Automated review is advisory; verify important claims against the linked sources.</p>
         {result.flags?.length > 0 ? (
           <ul>
             {result.flags.map((f, i) => (
               <li key={i}><span className={`pill ${f.severity.toLowerCase() === 'high' ? 'bad' : f.severity.toLowerCase() === 'low' ? 'good' : 'warn'}`}>{f.severity}</span> {f.claim} — <span className="muted">{f.issue}</span></li>
             ))}
           </ul>
-        ) : <p className="muted">No unsupported claims flagged.</p>}
+        ) : <p className="muted">No issues were flagged by the automated review. This does not guarantee factual accuracy.</p>}
       </div>
 
       <div className="card">
