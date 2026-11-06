@@ -33,6 +33,23 @@ public static class StructuredAgentOutput
             }
         });
 
+    /// <summary>
+    /// Ask the provider to constrain the answer to the declared DTO shape rather than
+    /// requesting merely syntactically valid JSON. Keep the normal agent pipeline.
+    /// </summary>
+    public static AIAgent CreateSchemaAgent<T>(IChatClient chat, string name, string instructions, int maxOutputTokens)
+        => chat.AsAIAgent(new ChatClientAgentOptions
+        {
+            Name = name,
+            ChatOptions = new ChatOptions
+            {
+                Instructions = instructions,
+                MaxOutputTokens = maxOutputTokens,
+                ResponseFormat = ChatResponseFormat.ForJsonSchema<T>(s_json),
+                Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None }
+            }
+        });
+
     public static async Task<T> RunAsync<T>(
         AIAgent agent, string prompt, string stage, CancellationToken ct = default)
     {
@@ -87,31 +104,70 @@ public static class StructuredAgentOutput
                 $"response length: {text.Length} characters).", ex);
         }
 
-        var invalid = value switch
-        {
-            ResearchOutput research =>
-                string.IsNullOrWhiteSpace(research.TopicSummary) ||
-                research.GroundedFacts is not { Count: > 0 } ||
-                research.GroundedFacts.Any(f =>
-                    string.IsNullOrWhiteSpace(f.Statement) ||
-                    f.Citations is not { Count: > 0 } ||
-                    f.Citations.Any(c => string.IsNullOrWhiteSpace(c.Title) ||
-                                         string.IsNullOrWhiteSpace(c.Url))),
-            LessonPlanOutput plan =>
-                string.IsNullOrWhiteSpace(plan.Title) || plan.Sections is not { Count: > 0 },
-            QuizOutput quiz =>
-                quiz.Questions is not { Count: > 0 },
-            VerifiedLessonOutput verified =>
-                verified.Plan?.Sections is not { Count: > 0 } ||
-                verified.Quiz?.Questions is not { Count: > 0 },
-            _ => false
-        };
-
-        if (invalid)
+        var missing = MissingRequiredContent(value);
+        if (missing.Count > 0)
             throw new InvalidOperationException(
                 $"{stage} returned valid JSON but omitted required lesson content or citation arrays. " +
+                $"Missing or invalid fields: {string.Join(", ", missing)}. " +
                 "The result was rejected rather than treating an empty payload as successful.");
 
         return value;
+    }
+
+    // Report only known DTO field paths; never echo generated model text into logs.
+    // Validation is intentionally deterministic and independent of the model provider.
+    private static List<string> MissingRequiredContent<T>(T value)
+    {
+        var missing = new List<string>();
+        switch (value)
+        {
+            case ResearchOutput research:
+                if (string.IsNullOrWhiteSpace(research.TopicSummary)) missing.Add("topic_summary");
+                if (research.GroundedFacts is not { Count: > 0 })
+                    missing.Add("grounded_facts");
+                else
+                {
+                    foreach (var (fact, index) in research.GroundedFacts.Select((fact, index) => (fact, index)))
+                    {
+                        if (fact is null || string.IsNullOrWhiteSpace(fact.Statement))
+                            missing.Add($"grounded_facts[{index}].statement");
+                        if (fact?.Citations is not { Count: > 0 } ||
+                            fact.Citations.Any(c => c is null ||
+                                string.IsNullOrWhiteSpace(c.Title) || string.IsNullOrWhiteSpace(c.Url)))
+                            missing.Add($"grounded_facts[{index}].citations");
+                    }
+                }
+                break;
+
+            case LessonPlanOutput plan:
+                if (string.IsNullOrWhiteSpace(plan.Title)) missing.Add("title");
+                if (string.IsNullOrWhiteSpace(plan.Overview)) missing.Add("overview");
+                if (plan.LearningObjectives is not { Count: > 0 } ||
+                    plan.LearningObjectives.Any(string.IsNullOrWhiteSpace))
+                    missing.Add("learning_objectives");
+                if (plan.Sections is not { Count: > 0 })
+                    missing.Add("sections");
+                else
+                {
+                    foreach (var (section, index) in plan.Sections.Select((section, index) => (section, index)))
+                    {
+                        if (section is null || string.IsNullOrWhiteSpace(section.Title))
+                            missing.Add($"sections[{index}].title");
+                        if (section is null || string.IsNullOrWhiteSpace(section.Body))
+                            missing.Add($"sections[{index}].body");
+                    }
+                }
+                break;
+
+            case QuizOutput quiz:
+                if (quiz.Questions is not { Count: > 0 }) missing.Add("questions");
+                break;
+
+            case VerifiedLessonOutput verified:
+                if (verified.Plan?.Sections is not { Count: > 0 }) missing.Add("plan.sections");
+                if (verified.Quiz?.Questions is not { Count: > 0 }) missing.Add("quiz.questions");
+                break;
+        }
+        return missing;
     }
 }
