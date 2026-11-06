@@ -42,7 +42,8 @@ public static partial class ResearchAgent
     public static AIAgent CreateAgent(IChatClient chatClient)
         => chatClient.AsAIAgent(name: AgentName, instructions: AgentInstructions);
 
-    public sealed partial class ResearchExecutor(AIAgent agent, RetrievalService retrieval, RagContext rag)
+    public sealed partial class ResearchExecutor(
+        AIAgent agent, RetrievalService retrieval, RagContext rag, IProgress<string>? progress = null)
         : Executor("Research")
     {
         [MessageHandler]
