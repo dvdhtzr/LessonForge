@@ -1,7 +1,6 @@
 // Copyright (c) 2026 — LessonForge. Original work.
 
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using HtmlAgilityPack;
 
@@ -20,6 +19,7 @@ public sealed class WikibooksProvider(HttpClient http) : IEducationalSourceProvi
     public int MaxSearchResults { get; init; } = 6;
     public int MaxPages { get; init; } = 2;
     public int MaxResponseBytes { get; init; } = 600_000;
+    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
     public bool SupportsTopic(string topic) => !string.IsNullOrWhiteSpace(topic);
 
@@ -28,7 +28,8 @@ public sealed class WikibooksProvider(HttpClient http) : IEducationalSourceProvi
     {
         if (!SupportsTopic(topic)) return [];
         if (MaxSearchResults is < 1 or > 10 || MaxPages is < 1 or > 4 ||
-            MaxResponseBytes is < 4096 or > 1_000_000)
+            MaxResponseBytes is < 4096 or > 1_000_000 ||
+            RequestTimeout <= TimeSpan.Zero)
             throw new InvalidOperationException("Wikibooks retrieval limits are invalid.");
 
         var searchUrl = Build(
@@ -159,17 +160,20 @@ public sealed class WikibooksProvider(HttpClient http) : IEducationalSourceProvi
 
     private async Task<JsonDocument?> ReadJsonAsync(string url, CancellationToken ct)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RequestTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var response = await http.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
         if (!response.IsSuccessStatusCode ||
             response.Content.Headers.ContentLength > MaxResponseBytes)
             return null;
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
         using var buffer = new MemoryStream();
         var bytes = new byte[8192];
         int read;
-        while ((read = await stream.ReadAsync(bytes, ct)) > 0)
+        while ((read = await stream.ReadAsync(bytes, deadline.Token)) > 0)
         {
             if (buffer.Length + read > MaxResponseBytes)
                 return null;
@@ -179,7 +183,7 @@ public sealed class WikibooksProvider(HttpClient http) : IEducationalSourceProvi
         buffer.Position = 0;
         try
         {
-            return await JsonDocument.ParseAsync(buffer, cancellationToken: ct);
+            return await JsonDocument.ParseAsync(buffer, cancellationToken: deadline.Token);
         }
         catch (JsonException)
         {
