@@ -55,6 +55,131 @@ public sealed class AccuracyEditorReviewTests
     }
 
     [Fact]
+    public void FactCheckS3_OmittedLocationsAreRestoredFromSingleHostTarget()
+    {
+        // Regression for the observed Ollama result: FactCheck S3 omitted the
+        // locations of two otherwise complete, structured audit findings.
+        const string json = """
+            {
+              "flags": [
+                {
+                  "claim": "Missing context",
+                  "issue": "This section needs a qualification.",
+                  "severity": "Low",
+                  "category": "misleading_wording",
+                  "recommendation": "Clarify the section wording.",
+                  "evidence": "Source excerpt provides some context."
+                },
+                {
+                  "claim": "Attribution",
+                  "issue": "A direct source citation is missing.",
+                  "severity": "Medium",
+                  "category": "missing_citation",
+                  "location": "",
+                  "recommendation": "Add a supporting reference.",
+                  "evidence": ""
+                }
+              ],
+              "citation_coverage": 0.6,
+              "notes": "Review of the target section."
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<FactCheckReviewOutput>(json, "FactCheck S3", "stop"));
+        Assert.Contains("flags[0].location", error.Message);
+        Assert.Contains("flags[1].location", error.Message);
+
+        var review = StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+            json, "FactCheck S3", "stop", authoritativeSingleTarget: "S3");
+
+        Assert.Equal(2, review.Flags.Count);
+        Assert.All(review.Flags, finding => Assert.Equal("S3", finding.Location));
+        Assert.Equal("misleading_wording", review.Flags[0].Category);
+        Assert.Equal("missing_citation", review.Flags[1].Category);
+        Assert.Equal("Clarify the section wording.", review.Flags[0].Recommendation);
+        Assert.Equal("Add a supporting reference.", review.Flags[1].Recommendation);
+        Assert.Empty(AccuracyReviewPolicy.InvalidFields(review, sectionCount: 3, questionCount: 1));
+    }
+
+    [Fact]
+    public void SingleItemRecovery_DoesNotOverrideExplicitLocations()
+    {
+        const string json = """
+            {"flags":[
+              {"claim":"General concern","issue":"Needs scrutiny","severity":"Low",
+               "category":"insufficient_evidence","location":"GENERAL",
+               "recommendation":"Review sources."},
+              {"claim":"Wrong section","issue":"Out of scope","severity":"Low",
+               "category":"missing_citation","location":"S2",
+               "recommendation":"Review the citation."}],
+             "citation_coverage":0.6,"notes":"Scoped audit."}
+            """;
+        var review = StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+            json, "FactCheck S3", "stop", authoritativeSingleTarget: "S3");
+
+        Assert.Equal("GENERAL", review.Flags[0].Location);
+        Assert.Equal("S2", review.Flags[1].Location);
+
+        var wrong = Assert.Throws<InvalidOperationException>(() =>
+            AccuracyReviewPolicy.Prepare(review,
+                new LessonPlanOutput
+                {
+                    Sections = [new LessonSection { Title = "Only section", Body = "Text" }]
+                },
+                new QuizOutput { Questions = [new QuizQuestion { Stem = "Question", Options = ["A","B"] }] }));
+        Assert.Contains("flags[1].location", wrong.Message);
+    }
+
+    [Theory]
+    [InlineData("missing_citation", "S0", "flags[0].location")]
+    [InlineData("invented_category", "", "flags[0].category")]
+    [InlineData("missing_citation", "", null)]
+    public void LocationRecovery_StillRejectsOtherInvalidFieldsOrInvalidExplicitLocation(
+        string category, string location, string? expectedError)
+    {
+        var reviewJson = JsonSerializer.Serialize(new FactCheckReviewOutput
+        {
+            Flags = [new VerificationFlag
+            {
+                Claim = "Potential gap",
+                Issue = "More information is needed.",
+                Severity = "Low",
+                Category = category,
+                Location = location,
+                Recommendation = "Review the evidence."
+            }],
+            CitationCoverage = 0.5,
+            Notes = "Partial review."
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        if (expectedError is null)
+        {
+            var repaired = StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                reviewJson, "FactCheck Q4", "stop", authoritativeSingleTarget: "Q4");
+            Assert.Equal("Q4", Assert.Single(repaired.Flags).Location);
+        }
+        else
+        {
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                    reviewJson, "FactCheck Q4", "stop", authoritativeSingleTarget: "Q4"));
+            Assert.Contains(expectedError, error.Message);
+        }
+    }
+
+    [Theory]
+    [InlineData("S1, S2")]
+    [InlineData("GENERAL")]
+    [InlineData("S0")]
+    public void LocationRecovery_RejectsAmbiguousOrInvalidTarget(string target)
+    {
+        var review = new FactCheckReviewOutput();
+        Assert.Throws<ArgumentException>(() =>
+            AccuracyReviewPolicy.RestoreMissingLocationsForSingleTarget(review, target));
+    }
+
+    [Fact]
     public void FinalAssembly_PreservesEducatorApprovedArtifactsWithoutRewriting()
     {
         var plan = new LessonPlanOutput
