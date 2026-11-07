@@ -142,7 +142,7 @@ public static class StructuredAgentOutput
         // The review DTO initializes flags to [] and coverage to zero; each
         // VerificationFlag also defaults Severity to "Medium". Those defaults
         // must NEVER turn omitted model fields into successful fact-checking.
-        if (value is FactCheckReviewOutput)
+        if (value is FactCheckReviewOutput or SingleItemFactCheckOutput)
         {
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement;
@@ -214,7 +214,7 @@ public static class StructuredAgentOutput
 
             var kind = value switch
             {
-                FactCheckReviewOutput => "review fields",
+                FactCheckReviewOutput or SingleItemFactCheckOutput => "review fields",
                 ResearchSummaryRepairOutput => "research summary",
                 _ => "lesson content or citation arrays"
             };
@@ -318,6 +318,10 @@ public static class StructuredAgentOutput
 
             case FactCheckReviewOutput review:
                 missing.AddRange(AccuracyReviewPolicy.InvalidFields(review));
+                break;
+
+            case SingleItemFactCheckOutput singleItem:
+                missing.AddRange(SingleItemFactCheckBoundary.InvalidFields(singleItem));
                 break;
 
             case VerifiedLessonOutput verified:
