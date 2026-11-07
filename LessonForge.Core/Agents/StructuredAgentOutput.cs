@@ -156,6 +156,36 @@ public static class StructuredAgentOutput
                 }
             }
 
+            // For a one-item review, the host assigns the location. A model
+            // need not output it at all. But if it explicitly names a DIFFERENT
+            // canonical S#/Q# target (or GENERAL), reject rather than silently
+            // attributing another item's finding to the host target.
+            if (value is SingleItemFactCheckOutput &&
+                authoritativeSingleTarget is not null &&
+                root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("flags", out var scopedFlags) &&
+                scopedFlags.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                foreach (var flag in scopedFlags.EnumerateArray())
+                {
+                    if (flag.ValueKind == JsonValueKind.Object &&
+                        flag.TryGetProperty("location", out var rawLocation) &&
+                        rawLocation.ValueKind == JsonValueKind.String)
+                    {
+                        var location = rawLocation.GetString() ?? "";
+                        var canonicalLocation = location == "GENERAL" ||
+                            (location.Length >= 2 && location[0] is 'S' or 'Q' &&
+                             int.TryParse(location.AsSpan(1), out var num) && num > 0 &&
+                             location == $"{location[0]}{num}");
+                        if (canonicalLocation &&
+                            !string.Equals(location, authoritativeSingleTarget, StringComparison.Ordinal))
+                            missing.Add($"flags[{index}].location (outside {authoritativeSingleTarget})");
+                    }
+                    index++;
+                }
+            }
+
             // Explicit severity is required on every finding. Only the model
             // can apply the educator-facing rubric; the host must not silently
             // use the DTO's "Medium" default for a missing JSON property.
