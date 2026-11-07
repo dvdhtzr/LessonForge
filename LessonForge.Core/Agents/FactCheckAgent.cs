@@ -88,9 +88,10 @@ public static partial class FactCheckAgent
             }
 
             // Check ALL sections and questions, two at a time. Every batch gets its own
-            // relevant source excerpts and complete JSON validation. If a two-item
-            // batch hits the model's output limit, retry its items separately.
-            // A single-item failure still fails the stage; there is no partial audit.
+            // source excerpts and complete JSON validation. Truncated or incomplete
+            // two-item reviews are regenerated item by item. A one-item review
+            // with missing required fields gets at most one full retry; persistent
+            // failures stop the stage. No partial or invented audit results.
             var review = await AccuracyReviewBatcher.RunAsync(plan, quiz, async (scope, token) =>
             {
                 var queries = scope.Sections
