@@ -163,7 +163,8 @@ public static partial class FactCheckAgent
                     // every required field. No retry can be exhausted by a
                     // malformed or missing location from the model.
                     var scoped = await StructuredAgentOutput.RunAsync<SingleItemFactCheckOutput>(
-                        singleItemAgent, prompt, $"FactCheck {scope.Label}", token);
+                        singleItemAgent, prompt, $"FactCheck {scope.Label}", token,
+                        authoritativeSingleTarget: scope.Label);
                     return SingleItemFactCheckBoundary.AssignLocation(scoped, scope.Label);
                 }
 
