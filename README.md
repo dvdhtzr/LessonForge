@@ -2,8 +2,8 @@
 
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
 a citation-backed multiple-choice quiz**, grounded in rights-eligible sources retrieved
-through a local RAG index (Wikipedia articles, official USGS earthquake observations,
-and selected public-domain Library of Congress congressional-history catalog records).
+through a local RAG index (Wikipedia articles, Wikibooks instructional chapters,
+official USGS earthquake observations, and reviewed public-domain / CC0 catalogs).
 
 It is a standalone .NET 10 application: a multi-agent crew (built on the Microsoft Agent Framework)
 runs against a local Ollama server, behind a C# web API, with a React frontend and an in-process
@@ -21,7 +21,7 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 
 | Stage | Persona | Does |
 |-------|---------|------|
-| Research | Research Librarian | Retrieves Wikipedia articles, relevant USGS earthquake observations and scoped Library of Congress congressional-history catalog metadata; rights-checks and embeds eligible evidence in a per-run index |
+| Research | Research Librarian | Retrieves enabled Wikipedia and Wikibooks text, relevant USGS observations and rights-scoped catalog metadata; validates permissions and embeds eligible evidence in a per-run index |
 | *optional* | **Perspective Analyst** | When enabled, retrieves additional sources, identifies substantiated differing interpretations, or explicitly reports no substantive disagreement / insufficient evidence |
 | *gate* | — | Educator reviews/edits/approves grounded facts **and**, when enabled, the perspective analysis |
 | Lesson Planner | Curriculum Designer | Builds an age-calibrated plan: objectives, sections, activities, vocabulary |
