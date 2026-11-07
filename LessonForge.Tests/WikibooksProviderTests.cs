@@ -75,7 +75,7 @@ public sealed class WikibooksProviderTests
         Assert.DoesNotContain("<", doc.Text);
         Assert.True(SourcePermissionGate.Evaluate(doc).Allowed);
         Assert.Equal("CC-BY-SA-4.0", doc.Rights?.LicenseId);
-        Assert.False(doc.Rights?.MayRedistribute);
+        Assert.False(doc.Rights?.MayRedistribute ?? true);
         Assert.Equal(2, handler.Requests.Count);
         Assert.All(handler.Requests, uri =>
         {
