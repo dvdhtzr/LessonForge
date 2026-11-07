@@ -36,7 +36,8 @@ public static partial class LessonPlannerAgent
           activities (array of 1-2 actionable strings), duration_minutes (integer).
         - vocabulary: an array of objects with term and definition strings.
         - materials: an array of strings.
-        - citations: an array of objects with title and url strings.
+        - citations: an array of objects with title and url strings, each distinct URL
+          appearing only once in this list.
 
         IMPORTANT: The top-level "sections" array must be nonempty. Do not rename it to
         "lesson", "outline", "content", "chapters" or "lesson_sections". Every section
