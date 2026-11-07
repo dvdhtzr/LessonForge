@@ -92,6 +92,7 @@ public static partial class QuizGeneratorAgent
                     "QuizGenerator cannot verify citations without the retrieval index.");
             var citations = plan.Citations.Count > 0 ? plan.Citations : state.Research?.SourceInventory ?? new();
             SourceCitationValidator.RequireRetrieved(citations, knownSources, "Educator-approved lesson");
+            SourceCitationDeduplicator.NormalizeInPlace(citations);
             var citationList = string.Join("\n", citations.Select(c => $" - {c.Title}: {c.Url}"));
             var approvedPerspectives = state.Research?.Perspectives;
             if (request.ExplorePerspectives && approvedPerspectives is null)
