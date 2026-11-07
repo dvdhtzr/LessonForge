@@ -9,6 +9,9 @@ namespace LessonForge.Core.Rag;
 /// <summary>Bounds that keep a retrieval run fast and polite.</summary>
 public sealed class RetrievalOptions
 {
+    /// <summary>Whether Wikipedia is enabled in the local source selection.</summary>
+    public bool EnableWikipedia { get; set; } = true;
+
     /// <summary>How many top search hits to use as seed articles.</summary>
     public int MaxSeedArticles { get; set; } = 2;
 
@@ -108,7 +111,7 @@ public sealed class RetrievalService(
         // First try the requested Wikipedia title, including lowercase input.
         // We only lock to the direct result when its canonical title actually
         // matches the requested subject, never on fuzzy surname similarity.
-        if (TopicIdentity.IsShortTitleCandidate(topic))
+        if (_options.EnableWikipedia && TopicIdentity.IsShortTitleCandidate(topic))
         {
             var direct = await wikipedia.GetArticleAsync(topic, ct);
             if (direct is not null && TopicIdentity.SameTitle(topic, direct.Title))
@@ -118,7 +121,7 @@ public sealed class RetrievalService(
             }
         }
 
-        if (namedSubject)
+        if (_options.EnableWikipedia && namedSubject)
         {
             // Never allow a fuzzy title/surname hit to become the subject of a
             // named-person or other explicitly named-entity lesson.
@@ -156,10 +159,15 @@ public sealed class RetrievalService(
                 seedTitles = [exactArticle.Title];
             }
         }
-        else
+        else if (_options.EnableWikipedia)
         {
             progress?.Report($"Searching Wikipedia for \"{topic}\"…");
             seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+        }
+        else
+        {
+            progress?.Report("Wikipedia disabled by local source settings; checking other enabled providers.");
+            seedTitles = [];
         }
 
         var documents = new List<SourceDocument>();
