@@ -93,6 +93,17 @@ requires explicit written permission and a new rights review first.
 See [OpenStax licensing](https://help.openstax.org/s/article/Openstax-textbook-licensing-and-customization)
 and [a book's attribution notice](https://openstax.org/books/biology-2e/pages/1-introduction).
 
+### Duplicate citation handling
+
+Each distinct source URL appears only once within a research fact, a lesson-plan
+Sources list, a quiz answer's citations, a perspective's references, and the
+retrieved-source provenance list. The host removes exact/equivalent URL repeats
+*after* citation validation, keeping the first approved title and URL in order.
+Different source URLs remain independent even if their page titles match.
+The same source may still legitimately support multiple **different** facts.
+Previously saved lessons are normalized when loaded for display and export;
+their stored JSON is not rewritten or migrated.
+
 ### Project Gutenberg — key-free catalog integration
 
 The Research Librarian can discover books and source bibliographies from the
