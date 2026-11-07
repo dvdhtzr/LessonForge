@@ -61,28 +61,13 @@ public static class SingleItemFactCheckBoundary
         SingleItemFactCheckOutput model, string target)
     {
         ArgumentNullException.ThrowIfNull(model);
-        // Reuse the existing strict target validator rather than parsing
-        // arbitrary model-provided IDs. It will throw for S0, Q0, GENERAL,
-        // comma-separated IDs, and malformed identifiers.
+
+        // Reuse the policy's strict S#/Q# validation. Invalid, ambiguous or
+        // invented host targets cannot be assigned to findings.
         AccuracyReviewPolicy.RestoreMissingLocationsForSingleTarget(
             new FactCheckReviewOutput(), target);
 
-        var review = new FactCheckReviewOutput
-        {
-            Flags = model.Flags?.Select(f => f is null ? null! : new VerificationFlag
-            {
-                Claim = f.Claim,
-                Issue = f.Issue,
-                Severity = f.Severity,
-                Category = f.Category,
-                Recommendation = f.Recommendation,
-                Evidence = f.Evidence,
-                Location = target
-            }).ToList()!,
-            CitationCoverage = model.CitationCoverage,
-            Notes = model.Notes
-        };
-
+        var review = BuildReview(model, target);
         var invalid = AccuracyReviewPolicy.InvalidFields(review);
         if (invalid.Count > 0)
             throw new InvalidOperationException(
@@ -94,21 +79,28 @@ public static class SingleItemFactCheckBoundary
 
     public static IReadOnlyList<string> InvalidFields(SingleItemFactCheckOutput model)
     {
-        var review = new FactCheckReviewOutput
-        {
-            Flags = model.Flags?.Select(f => f is null ? null! : new VerificationFlag
-            {
-                Claim = f.Claim,
-                Issue = f.Issue,
-                Severity = f.Severity,
-                Category = f.Category,
-                Recommendation = f.Recommendation,
-                Evidence = f.Evidence,
-                Location = "S1"
-            }).ToList()!,
-            CitationCoverage = model.CitationCoverage,
-            Notes = model.Notes
-        };
-        return AccuracyReviewPolicy.InvalidFields(review);
+        ArgumentNullException.ThrowIfNull(model);
+        // The parser validates the substantive fields before host binding;
+        // S1 is a syntactically valid INTERNAL placeholder for this check,
+        // never used as the visible location. AssignLocation validates and
+        // substitutes the authoritative scope before any report is published.
+        return AccuracyReviewPolicy.InvalidFields(BuildReview(model, "S1"));
     }
+
+    private static FactCheckReviewOutput BuildReview(
+        SingleItemFactCheckOutput model, string location) => new()
+    {
+        Flags = model.Flags?.Select(f => f is null ? null! : new VerificationFlag
+        {
+            Claim = f.Claim,
+            Issue = f.Issue,
+            Severity = f.Severity,
+            Category = f.Category,
+            Recommendation = f.Recommendation,
+            Evidence = f.Evidence,
+            Location = location
+        }).ToList()!,
+        CitationCoverage = model.CitationCoverage,
+        Notes = model.Notes
+    };
 }
