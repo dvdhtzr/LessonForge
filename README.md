@@ -118,11 +118,16 @@ Perspective Analyst and educator-review gate, which may correctly
 conclude that no credible competing interpretations are established.
 Neither the heuristic nor a checkbox asserts equally credible sides.
 
-The Accuracy Editor also performs **one bounded full regeneration** of
-a single S#/Q# scope if its structured response still omits finding
-locations after the host-based recovery. It retains existing strict
-validation; repeated failure still stops rather than silently reporting
-successful fact checking.
+The Accuracy Editor performs bounded recovery when a local model returns
+incomplete structured findings. Every flag must explicitly include a severity
+of `High`, `Medium`, `Low`, or `Informational`; an absent value is rejected
+even though legacy DTOs initialize a default of `Medium`. A two-item S#/Q#
+scope with missing/invalid required review fields is **fully regenerated as
+two independent one-item reviews**. A one-item scope gets at most **one**
+complete retry. The host can recover an absent location from the known
+single review target, but **never invents a severity or other finding**.
+Persistent malformed responses still fail closed rather than claiming the
+lesson was fact-checked.
 
 ### Duplicate citation handling
 
