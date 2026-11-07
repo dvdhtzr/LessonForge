@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LessonRequest } from '../types'
+import { api, type PerspectiveSignal } from '../api/client'
 
 const EXAMPLES = ['Photosynthesis', 'The water cycle', 'Fractions', 'Ancient Egypt', 'The American Revolution']
 
@@ -14,6 +15,56 @@ export default function NewLesson() {
   const [difficulty, setDifficulty] = useState('auto')
   const [interactive, setInteractive] = useState(true)
   const [explorePerspectives, setExplorePerspectives] = useState(false)
+  const [manualPerspectiveOption, setManualPerspectiveOption] = useState(false)
+  const [perspectiveSignal, setPerspectiveSignal] = useState<PerspectiveSignal | null>(null)
+  const [checkingPerspective, setCheckingPerspective] = useState(false)
+
+  const perspectiveOptionVisible = perspectiveSignal?.suggested === true || manualPerspectiveOption
+
+  function changeTopic(next: string) {
+    setTopic(next)
+    // A recommendation for one article must never carry over to another.
+    setExplorePerspectives(false)
+    setManualPerspectiveOption(false)
+    setPerspectiveSignal(null)
+  }
+
+  useEffect(() => {
+    const normalized = topic.trim()
+    if (normalized.length < 3 || normalized.length > 120) {
+      setPerspectiveSignal(null)
+      setCheckingPerspective(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setCheckingPerspective(true)
+    const timer = window.setTimeout(() => {
+      void api.perspectivesSignal(normalized, controller.signal)
+        .then((result) => {
+          if (!controller.signal.aborted) setPerspectiveSignal(result)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setPerspectiveSignal({
+              suggested: false,
+              status: 'unavailable',
+              reason: 'Article preview unavailable. You can still choose this in Advanced options.',
+              sourceTitle: '',
+              sourceUrl: '',
+            })
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setCheckingPerspective(false)
+        })
+    }, 650)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [topic])
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -21,7 +72,7 @@ export default function NewLesson() {
       topic: topic.trim(),
       audience_age: age,
       audience_notes: notes.trim(),
-      explore_perspectives: explorePerspectives,
+      explore_perspectives: perspectiveOptionVisible && explorePerspectives,
       quiz_config: { question_count: questionCount, option_count: optionCount, difficulty },
     }
     navigate('/run', { state: { request, interactive } })
@@ -38,10 +89,10 @@ export default function NewLesson() {
 
       <label htmlFor="topic">What would you like to teach?</label>
       <input id="topic" value={topic} required placeholder="e.g. Photosynthesis"
-        onChange={(e) => setTopic(e.target.value)} />
+        onChange={(e) => changeTopic(e.target.value)} />
       <div className="chips">
         {EXAMPLES.map((ex) => (
-          <button type="button" key={ex} className="chip" onClick={() => setTopic(ex)}>{ex}</button>
+          <button type="button" key={ex} className="chip" onClick={() => changeTopic(ex)}>{ex}</button>
         ))}
       </div>
 
@@ -81,18 +132,54 @@ export default function NewLesson() {
         placeholder="e.g. They've already covered cells. Keep it hands-on. Include a group activity."
         onChange={(e) => setNotes(e.target.value)} />
 
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 20 }}>
-        <input type="checkbox" style={{ width: 'auto', marginTop: 3 }} checked={explorePerspectives}
-          onChange={(e) => setExplorePerspectives(e.target.checked)} />
-        <span>
-          <strong>Explore differing perspectives</strong>
-          <span className="hint" style={{ display: 'block' }}>
-            Optional: a Perspective Analyst examines credible interpretations and their evidence.
-            Not every topic has a meaningful debate; unsupported claims won't be given equal weight.
-            With educator review enabled, you can approve or edit the findings before the lesson is written.
+      {checkingPerspective && (
+        <p className="hint" role="status">Checking the initial article for evidence of substantive disagreement…</p>
+      )}
+
+      {perspectiveSignal?.status === 'unavailable' && !checkingPerspective && (
+        <p className="hint" role="status">
+          Article-based preview unavailable. Lesson generation remains available;
+          use Advanced options to request a perspective review manually.
+        </p>
+      )}
+
+      {!perspectiveSignal?.suggested && (
+        <details style={{ marginTop: 16 }}>
+          <summary>Advanced options</summary>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 10 }}>
+            <input type="checkbox" style={{ width: 'auto', marginTop: 3 }}
+              checked={manualPerspectiveOption}
+              onChange={(e) => {
+                setManualPerspectiveOption(e.target.checked)
+                if (!e.target.checked) setExplorePerspectives(false)
+              }} />
+            <span>Allow me to explore differing perspectives even without a source-based recommendation.</span>
+          </label>
+        </details>
+      )}
+
+      {perspectiveOptionVisible && (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 20 }}>
+          <input type="checkbox" style={{ width: 'auto', marginTop: 3 }} checked={explorePerspectives}
+            onChange={(e) => setExplorePerspectives(e.target.checked)} />
+          <span>
+            <strong>Explore differing perspectives</strong>
+            <span className="hint" style={{ display: 'block' }}>
+              {perspectiveSignal?.suggested
+                ? 'The initial Wikipedia article contains multiple signals of scholarly, ethical, or methodological dispute.'
+                : 'Manually selected: the Perspective Analyst will assess whether the evidence supports differing interpretations.'}
+              {' '}The analyst checks the evidence and does not invent debate or treat unsupported views as equal.
+              With educator review enabled, you can approve or edit its findings.
+            </span>
+            {perspectiveSignal?.suggested && perspectiveSignal.sourceUrl.startsWith('https://en.wikipedia.org/wiki/') && (
+              <span className="hint" style={{ display: 'block' }}>
+                Initial article: <a href={perspectiveSignal.sourceUrl}
+                  target="_blank" rel="noopener noreferrer">{perspectiveSignal.sourceTitle}</a>
+              </span>
+            )}
           </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontWeight: 400, marginTop: 20 }}>
         <input type="checkbox" style={{ width: 'auto', marginTop: 3 }} checked={interactive}
