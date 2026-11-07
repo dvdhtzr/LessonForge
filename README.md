@@ -93,6 +93,37 @@ requires explicit written permission and a new rights review first.
 See [OpenStax licensing](https://help.openstax.org/s/article/Openstax-textbook-licensing-and-customization)
 and [a book's attribution notice](https://openstax.org/books/biology-2e/pages/1-introduction).
 
+### Evidence-based differing-perspectives suggestion
+
+The new-lesson form makes one bounded, anonymous request to
+`GET /api/lessons/perspectives-signal?topic=...` after the topic stops
+changing. The API reads the **initial English Wikipedia article** through
+the already reviewed MediaWiki API and checks its text for a **cluster**
+of concrete methodological, scholarly, ethical or historical dispute
+indicators. This is a heuristic recommendation, not a truth verdict.
+There is **no LLM call**, source ingest, or charged provider in this
+preflight; it is independent of the MAF perspective analysis.
+
+When supported, the form **offers** an unchecked "Explore differing
+perspectives" option and identifies the article inspected. Neutral
+articles such as gravity, photosynthesis and boiling-point explanations
+should not recommend a debate based on incidental words such as
+"theory". An educator can always opt in via **Advanced options**;
+failure to fetch the article never prevents creating a lesson.
+Changing the topic clears the old recommendation, and prior in-flight
+requests are cancelled.
+
+Enabling the checkbox still runs the normal evidence-restricted
+Perspective Analyst and educator-review gate, which may correctly
+conclude that no credible competing interpretations are established.
+Neither the heuristic nor a checkbox asserts equally credible sides.
+
+The Accuracy Editor also performs **one bounded full regeneration** of
+a single S#/Q# scope if its structured response still omits finding
+locations after the host-based recovery. It retains existing strict
+validation; repeated failure still stops rather than silently reporting
+successful fact checking.
+
 ### Duplicate citation handling
 
 Each distinct source URL appears only once within a research fact, a lesson-plan
