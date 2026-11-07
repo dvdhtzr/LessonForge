@@ -168,8 +168,9 @@ public static partial class PerspectiveAnalystAgent
 
             // Attach the additional *retrieved* source inventory. A later educator
             // edit cannot cite material absent from the indexed source set.
-            research.SourceInventory = allowed;
+            research.SourceInventory = SourceCitationDeduplicator.Unique(allowed);
             research.Perspectives = result;
+            SourceCitationDeduplicator.Normalize(research);
             state.Research = research;
             state.CurrentStep = 2;
             await context.QueueStateUpdateAsync(
