@@ -45,6 +45,54 @@ individual scopes: no guesses about which finding belongs to which item.
 A single-item result that remains otherwise malformed still fails closed,
 and truncated responses remain rejected.
 
+### Local source selection (tracked `appsettings.Local.json`)
+
+All available retrieval sources are configured together in
+[`LessonForge.Api/appsettings.Local.json`](LessonForge.Api/appsettings.Local.json).
+This intentionally **committed, nonsecret** settings file uses standard .NET
+configuration comments to distinguish sources that may be usable commercially
+under their **specific** rights scope from sources that require additional
+permission. Do not put passwords, tokens, or machine-specific secrets in it.
+
+`LessonForge:Sources` uses the same provider IDs as saved source provenance:
+
+| Provider ID | Default | AI evidence allowed? | Scope |
+|---|---:|---|---|
+| `wikipedia-text` | true | Yes | CC BY-SA article text; cite original |
+| `wikibooks-text` | true | Yes | CC BY-SA instructional page text; cite chapter |
+| `usgs-earthquakes` | true | Yes | USGS-authored observation fields |
+| `loc-century-of-lawmaking` | true | Yes | Public-domain collection catalog descriptions |
+| `gutenberg-catalog` | true | Yes | Official public-domain catalog **metadata only** |
+| `smithsonian-openaccess-metadata` | true | Yes | Per-record CC0 museum catalog **metadata only** |
+| `openstax-text` | **false** | **No, without prior written permission** | CC BY-NC-SA and explicit prohibition on generative-AI ingestion |
+
+Set a boolean flag to `false` to disable a source, then restart the API.
+Invalid/unknown or absent switches fail at startup instead of silently using
+an unexpected source set. An enabled flag is never a legal permission grant:
+every candidate document must still pass `SourcePermissionGate` before
+embedding and agent input. The existing local Ollama model settings remain
+in `appsettings.json`.
+
+**Wikibooks:** the key-free adapter calls the English Wikibooks official
+MediaWiki Action API, searches at most six main-namespace page titles, fetches
+at most two relevant instructional chapters, and extracts only bounded
+human-readable paragraphs/headings/lists. No third-party reference URLs,
+images, media or arbitrary HTML go into the model. Per-chapter URL, provider,
+license and document checksum are recorded with the normal citations.
+Commercial usage remains subject to Creative Commons attribution and
+share-alike obligations; being freely readable is not permission to ignore them.
+See [Wikibooks copyrights](https://en.wikibooks.org/wiki/Wikibooks:Copyrights).
+
+**OpenStax:** being free for noncommercial educational reading **does not**
+authorize using its books as LLM/RAG input. OpenStax's textbook attribution
+notices explicitly require **prior written permission** for ingestion into
+LLMs or generative AI offerings. Consequently `openstax-text` is a disabled
+catalog entry and a switch set to `true` is rejected at API startup.
+No OpenStax book text is downloaded or embedded. Adding an OpenStax adapter
+requires explicit written permission and a new rights review first.
+See [OpenStax licensing](https://help.openstax.org/s/article/Openstax-textbook-licensing-and-customization)
+and [a book's attribution notice](https://openstax.org/books/biology-2e/pages/1-introduction).
+
 ### Project Gutenberg — key-free catalog integration
 
 The Research Librarian can discover books and source bibliographies from the
