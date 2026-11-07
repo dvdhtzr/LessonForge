@@ -29,6 +29,22 @@ React/TS (Vite)  ──HTTP + SSE──▶  ASP.NET Core API  ──▶  MAF wor
 | Quiz Generator | Assessment Writer | Writes MCQs (defaults: 10 questions × 4 options, difficulty auto-scaled to age) with citation-backed explanations |
 | Fact-Check | Accuracy Editor | Reviews claims/answers against retrieved evidence; returns compact findings and flags without rewriting the approved lesson or quiz |
 
+### Accuracy Editor — missing finding locations
+
+The Accuracy Editor audits lesson sections and quiz questions in independent,
+small scopes. Each educator-visible finding must identify the audited item
+(`S3`, `Q1`, or `GENERAL`). A valid Ollama JSON response can occasionally
+omit the `location` field even when all other finding fields are present.
+
+When the server is auditing **exactly one** section/question, that host-selected
+identifier is unambiguous; the structured-output boundary now fills only a
+missing/blank location with that ID. It never overwrites a supplied location,
+changes finding content, or relaxes severity/category/recommendation validation.
+For a two-item scope with missing locations, the batcher instead retries the
+individual scopes: no guesses about which finding belongs to which item.
+A single-item result that remains otherwise malformed still fails closed,
+and truncated responses remain rejected.
+
 ### Project Gutenberg — key-free catalog integration
 
 The Research Librarian can discover books and source bibliographies from the
