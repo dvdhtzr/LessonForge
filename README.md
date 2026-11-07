@@ -118,16 +118,22 @@ Perspective Analyst and educator-review gate, which may correctly
 conclude that no credible competing interpretations are established.
 Neither the heuristic nor a checkbox asserts equally credible sides.
 
-The Accuracy Editor performs bounded recovery when a local model returns
-incomplete structured findings. Every flag must explicitly include a severity
-of `High`, `Medium`, `Low`, or `Informational`; an absent value is rejected
-even though legacy DTOs initialize a default of `Medium`. A two-item S#/Q#
-scope with missing/invalid required review fields is **fully regenerated as
-two independent one-item reviews**. A one-item scope gets at most **one**
-complete retry. The host can recover an absent location from the known
-single review target, but **never invents a severity or other finding**.
-Persistent malformed responses still fail closed rather than claiming the
-lesson was fact-checked.
+The Accuracy Editor uses two complementary strict schemas. It first
+reviews two items together when possible. A multi-item response with
+missing/invalid required fields is discarded and **regenerated as separate
+single-item reviews**. The single-item schema **does not contain a
+`location` field**: the application assigns the host-selected `S#`/`Q#`
+to every finding, instead of relying on Ollama to repeat it. If an
+out-of-contract model response explicitly claims a different canonical
+item ID, the response is rejected rather than misattributed.
+
+All substantive finding fields remain mandatory: every flag must include an
+explicit severity of `High`, `Medium`, `Low`, or `Informational`, and a
+valid category, claim, issue and educator recommendation. No missing severity
+is inferred from the legacy DTO's `Medium` default. A single-item audit
+gets at most **one full retry** if it returns incomplete fields; persistent
+failures still fail closed. No invalid report becomes an empty successful
+fact-check and no lesson, quiz, answer, or approved citation is rewritten.
 
 ### Duplicate citation handling
 
