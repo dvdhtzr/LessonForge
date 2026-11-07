@@ -28,6 +28,35 @@ public static class AccuracyReviewPolicy
         "insufficient_evidence"
     };
 
+    /// <summary>
+    /// An Accuracy Editor scoped to exactly one host-selected section or question
+    /// has an unambiguous location even when a local model omits that JSON field.
+    /// Restore only missing/blank locations from that authoritative target.
+    /// Never override GENERAL, an explicit (even invalid) model location, or
+    /// deduce a location from a claim's wording. Multi-item scopes have no
+    /// safe default and are not eligible for this recovery.
+    /// </summary>
+    public static int RestoreMissingLocationsForSingleTarget(
+        FactCheckReviewOutput review, string target)
+    {
+        ArgumentNullException.ThrowIfNull(review);
+        ArgumentException.ThrowIfNullOrWhiteSpace(target);
+        if (target[0] is not ('S' or 'Q') ||
+            !ValidLocation(target, null, null))
+            throw new ArgumentException("A single section or question ID is required.", nameof(target));
+
+        var restored = 0;
+        foreach (var finding in review.Flags ?? [])
+        {
+            if (finding is not null && string.IsNullOrWhiteSpace(finding.Location))
+            {
+                finding.Location = target;
+                restored++;
+            }
+        }
+        return restored;
+    }
+
     public static IReadOnlyList<string> InvalidFields(
         FactCheckReviewOutput review, int? sectionCount = null, int? questionCount = null)
     {

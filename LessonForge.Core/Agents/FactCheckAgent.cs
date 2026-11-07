@@ -117,7 +117,8 @@ public static partial class FactCheckAgent
                     plan, quiz, state.Research, evidence, scope, state.Request.AudienceAge);
 
                 return await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
-                    agent, prompt, $"FactCheck {scope.Label}", token);
+                    agent, prompt, $"FactCheck {scope.Label}", token,
+                    authoritativeSingleTarget: scope.ItemCount == 1 ? scope.Label : null);
             }, cancellationToken);
 
             // Deliberately do not trust the LLM to reconstruct or modify the approved
@@ -242,8 +243,12 @@ public static partial class FactCheckAgent
             {evidence}
 
             Return ONLY JSON with flags, citation_coverage, notes, using the required
-            structured finding fields and severity rubric. Include empty flags if
-            no issues found. Keep notes to one short sentence. No rewritten content.
+            structured finding fields and severity rubric. For EVERY flag, include
+            an explicit "location" set to the EXACT S#/Q# identifier of the
+            affected TARGET ITEM above, or "GENERAL" for a truly global finding.
+            Never omit location, even when the claim names the target already.
+            Include empty flags if no issues found. Keep notes to one short sentence.
+            No rewritten content.
             """;
     }
 
