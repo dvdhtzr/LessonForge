@@ -85,6 +85,110 @@ public sealed class AccuracyReviewBatcherTests
     }
 
     [Fact]
+    public async Task FactCheckQ7Q8_MissingSeveritySplitsAndRetainsBothIndependentReviews()
+    {
+        var calls = new List<string>();
+        const string incomplete = """
+            {
+              "flags": [
+                {"claim":"First finding","issue":"Explain missing context","severity":"Low",
+                 "category":"instructional_gap","location":"Q7",
+                 "recommendation":"Add the missing explanation."},
+                {"claim":"Second finding","issue":"Evidence is incomplete","severity":"",
+                 "category":"insufficient_evidence","location":"Q8",
+                 "recommendation":"Verify the supporting evidence."}
+              ],
+              "citation_coverage":0.5,
+              "notes":"Two-question review."
+            }
+            """;
+
+        var result = await AccuracyReviewBatcher.RunAsync(
+            Plan(1), Quiz(8),
+            (scope, _) =>
+            {
+                calls.Add(scope.Label);
+                if (scope.Label == "Q7, Q8")
+                    return Task.FromResult(StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                        incomplete, "FactCheck Q7, Q8", "stop"));
+                return Task.FromResult(Review(
+                    scope.Sections.Count > 0
+                        ? $"S{scope.Sections[0] + 1}"
+                        : $"Q{scope.Questions[0] + 1}", 0.5));
+            });
+
+        Assert.Equal(1, calls.Count(item => item == "Q7, Q8"));
+        Assert.Equal(1, calls.Count(item => item == "Q7"));
+        Assert.Equal(1, calls.Count(item => item == "Q8"));
+        Assert.Equal(2, result.Flags.Count(f => f.Location is "Q7" or "Q8"));
+        Assert.Equal(0.5, result.CitationCoverage, precision: 8);
+    }
+
+    [Fact]
+    public async Task SingleItemMissingSeverityGetsOneFullRegenerationWithoutDefaulting()
+    {
+        var attempts = 0;
+        var result = await AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(7),
+            (scope, _) =>
+            {
+                if (scope.Label == "Q7" && ++attempts == 1)
+                    throw new InvalidOperationException(
+                        "FactCheck Q7 returned valid JSON but omitted required review fields. " +
+                        "Missing or invalid fields: flags[0].severity. " +
+                        "The result was rejected rather than treating an empty payload as successful.");
+
+                return Task.FromResult(Review(
+                    scope.Sections.Count > 0
+                        ? $"S{scope.Sections[0] + 1}"
+                        : $"Q{scope.Questions[0] + 1}", 0.5));
+            });
+
+        Assert.Equal(2, attempts);
+        Assert.Contains(result.Flags, flag =>
+            flag.Location == "Q7" && flag.Severity == "Medium");
+    }
+
+    [Fact]
+    public async Task PersistentMissingSeverityFailsClosedAfterOneRetry()
+    {
+        var attempts = 0;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(7), (scope, _) =>
+            {
+                if (scope.Label == "Q7")
+                {
+                    attempts++;
+                    throw new InvalidOperationException(
+                        "FactCheck Q7 returned valid JSON but omitted required review fields. " +
+                        "Missing or invalid fields: flags[0].severity.");
+                }
+
+                return Task.FromResult(Review(
+                    scope.Sections.Count > 0
+                        ? $"S{scope.Sections[0] + 1}"
+                        : $"Q{scope.Questions[0] + 1}", 0.5));
+            }));
+
+        Assert.Equal(2, attempts);
+        Assert.Contains("flags[0].severity", error.Message);
+    }
+
+    [Fact]
+    public async Task UnrelatedModelFailureDoesNotTriggerRepeatedCalls()
+    {
+        var calls = 0;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(1), (scope, _) =>
+            {
+                calls++;
+                throw new InvalidOperationException("A backend transport failure.");
+            }));
+
+        Assert.Equal(1, calls);
+        Assert.Contains("backend transport failure", error.Message);
+    }
+
+    [Fact]
     public async Task MissingLocationOnSingleItem_StillFailsIfNotHostRestored()
     {
         var calls = new List<string>();
