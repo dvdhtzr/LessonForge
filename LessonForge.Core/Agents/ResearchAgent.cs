@@ -180,6 +180,7 @@ public static partial class ResearchAgent
             // perspectives from the factual Research Librarian stage.
             output.Perspectives = null;
             output.SourceInventory = RagPrompt.InventoryCitations(session);
+            SourceCitationDeduplicator.Normalize(output);
             if (output.QueriesUsed.Count == 0)
                 output.QueriesUsed = queries.ToList();
 
