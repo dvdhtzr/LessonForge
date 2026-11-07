@@ -133,6 +133,7 @@ public static partial class QuizGeneratorAgent
             foreach (var question in output.Questions)
                 SourceCitationValidator.RequireRetrieved(
                     question.Citations, knownSources, "Assessment question");
+            SourceCitationDeduplicator.Normalize(output);
 
             // The plan arriving through the RequestPort is the educator-approved
             // version, potentially edited. The final Accuracy Editor must see it.
