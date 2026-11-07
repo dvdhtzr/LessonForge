@@ -139,8 +139,9 @@ public static class StructuredAgentOutput
             }
         }
 
-        // The review DTO initializes flags to [] and coverage to zero. Both are
-        // potentially valid values, so additionally demand explicit model keys.
+        // The review DTO initializes flags to [] and coverage to zero; each
+        // VerificationFlag also defaults Severity to "Medium". Those defaults
+        // must NEVER turn omitted model fields into successful fact-checking.
         if (value is FactCheckReviewOutput)
         {
             using var document = JsonDocument.Parse(text);
@@ -152,6 +153,27 @@ public static class StructuredAgentOutput
                 {
                     if (!missing.Contains(field))
                         missing.Add(field);
+                }
+            }
+
+            // Explicit severity is required on every finding. Only the model
+            // can apply the educator-facing rubric; the host must not silently
+            // use the DTO's "Medium" default for a missing JSON property.
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("flags", out var flags) &&
+                flags.ValueKind == JsonValueKind.Array)
+            {
+                var flagIndex = 0;
+                foreach (var flag in flags.EnumerateArray())
+                {
+                    if (flag.ValueKind == JsonValueKind.Object &&
+                        !flag.TryGetProperty("severity", out _))
+                    {
+                        var path = $"flags[{flagIndex}].severity";
+                        if (!missing.Contains(path))
+                            missing.Add(path);
+                    }
+                    flagIndex++;
                 }
             }
         }
