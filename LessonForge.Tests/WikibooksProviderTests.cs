@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using LessonForge.Core.Rag;
 using Xunit;
 
@@ -37,11 +38,20 @@ public sealed class WikibooksProviderTests
             else if (query.Contains("action=parse", StringComparison.Ordinal))
             {
                 var title = redirect ? "Another Lesson" : "Biology/Photosynthesis";
-                body = $$"""
-                    {"parse":{"title":"{{title}}",
-                       "text":"<div class=\"mw-parser-output\"><h2>Teaching photosynthesis</h2><p>Photosynthesis is the way plants convert sunlight and water into energy-rich sugars, releasing oxygen as a byproduct of the process.</p><p>Chlorophyll in green plant cells absorbs solar light, helping a sequence of chemical reactions produce glucose that supports plant growth.</p><table><tr><td>UNREVIEWED TABLE CONTENT</td></tr></table><figure>UNREVIEWED IMAGE</figure><ul><li>Students can investigate the role of sunlight by observing how leaves respond to light over time.</li></ul><script>INJECTION</script></div>"
-                    }}
+                // Serialize the fixture rather than interpolating JSON braces.
+                // This avoids CS9007 and ensures the embedded HTML is escaped correctly.
+                var html = """
+                    <div class="mw-parser-output">
+                      <h2>Teaching photosynthesis</h2>
+                      <p>Photosynthesis is the way plants convert sunlight and water into energy-rich sugars, releasing oxygen as a byproduct of the process.</p>
+                      <p>Chlorophyll in green plant cells absorbs solar light, helping a sequence of chemical reactions produce glucose that supports plant growth.</p>
+                      <table><tr><td>UNREVIEWED TABLE CONTENT</td></tr></table>
+                      <figure>UNREVIEWED IMAGE</figure>
+                      <ul><li>Students can investigate the role of sunlight by observing how leaves respond to light over time.</li></ul>
+                      <script>INJECTION</script>
+                    </div>
                     """;
+                body = JsonSerializer.Serialize(new { parse = new { title, text = html } });
             }
             else body = "{}";
 
