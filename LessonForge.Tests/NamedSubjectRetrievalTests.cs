@@ -151,8 +151,7 @@ public sealed class NamedSubjectRetrievalTests
                         }}}}
                         """;
                 }
-                else if (query.Contains("titles=Pablo Escobar", StringComparison.Ordinal) &&
-                    !query.Contains("titles=Pablo Escobar's Hippos", StringComparison.Ordinal))
+                else if (query.Contains("titles=Pablo Escobar&", StringComparison.Ordinal))
                 {
                     BiographyRequests++;
                     json = """
