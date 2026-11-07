@@ -51,7 +51,8 @@ public static class StructuredAgentOutput
         });
 
     public static async Task<T> RunAsync<T>(
-        AIAgent agent, string prompt, string stage, CancellationToken ct = default)
+        AIAgent agent, string prompt, string stage, CancellationToken ct = default,
+        string? authoritativeSingleTarget = null)
     {
         var response = await agent.RunAsync(prompt, cancellationToken: ct);
 
@@ -62,7 +63,8 @@ public static class StructuredAgentOutput
             .Select(content => content.GetType().Name)
             .Distinct());
 
-        return Parse<T>(response.Text, stage, response.FinishReason?.ToString(), contentKinds);
+        return Parse<T>(response.Text, stage, response.FinishReason?.ToString(),
+            contentKinds, authoritativeSingleTarget);
     }
 
     /// <summary>
@@ -70,7 +72,8 @@ public static class StructuredAgentOutput
     /// outputs instead of silently passing empty DTOs to the next agent.
     /// </summary>
     public static T Parse<T>(
-        string? text, string stage, string? finishReason = null, string? contentKinds = null)
+        string? text, string stage, string? finishReason = null, string? contentKinds = null,
+        string? authoritativeSingleTarget = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
 
@@ -103,6 +106,15 @@ public static class StructuredAgentOutput
                 $"{stage} returned malformed or incompatible JSON (finish reason: {finishReason ?? "unknown"}; " +
                 $"response length: {text.Length} characters).", ex);
         }
+
+        // Only the host knows which section/question is being audited.
+        // In a single-item scope, its ID safely fills an omitted location;
+        // other review fields, explicit locations, and multi-item audits
+        // remain subject to the existing strict validation.
+        if (value is FactCheckReviewOutput scopedReview &&
+            authoritativeSingleTarget is not null)
+            AccuracyReviewPolicy.RestoreMissingLocationsForSingleTarget(
+                scopedReview, authoritativeSingleTarget);
 
         var missing = MissingRequiredContent(value);
 
