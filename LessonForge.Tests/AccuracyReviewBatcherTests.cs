@@ -115,7 +115,7 @@ public sealed class AccuracyReviewBatcherTests
                         "FactCheck S3 returned valid JSON but omitted required review fields. " +
                         "Missing or invalid fields: flags[0].location, flags[1].location. " +
                         "The result was rejected rather than treating an empty payload as successful.");
-                return Task.FromResult(Review(scope.Label.StartsWith("S") ? "S3" : "Q1", 0.5));
+                return Task.FromResult(Review(scope.Label.Split(',')[0].Trim(), 0.5));
             });
 
         Assert.Equal(2, attempts);
@@ -136,7 +136,7 @@ public sealed class AccuracyReviewBatcherTests
                         "FactCheck S3 returned valid JSON but omitted required review fields. " +
                         "Missing or invalid fields: flags[0].location, flags[1].location.");
                 }
-                return Task.FromResult(Review(scope.Label.StartsWith("S") ? "S1" : "Q1", 0.5));
+                return Task.FromResult(Review(scope.Label.Split(',')[0].Trim(), 0.5));
             }));
 
         Assert.Equal(2, attempts);
