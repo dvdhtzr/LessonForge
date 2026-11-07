@@ -6,8 +6,9 @@ namespace LessonForge.Core.Agents;
 
 /// <summary>
 /// Reviews every lesson section and quiz question in small, independently validated
-/// scopes. A length-exhausted multi-item response is retried as smaller scopes;
-/// an incomplete single-item review still fails the entire stage.
+/// scopes. A length-exhausted multi-item response or one omitting a finding
+/// location is retried as smaller scopes; a single-item audit can restore only
+/// the host-known missing location, while all other invalid findings fail.
 /// </summary>
 public static class AccuracyReviewBatcher
 {
@@ -98,10 +99,13 @@ public static class AccuracyReviewBatcher
             }
             catch (InvalidOperationException ex) when (
                 scope.ItemCount > 1 &&
-                ex.Message.Contains("output was truncated", StringComparison.OrdinalIgnoreCase))
+                (ex.Message.Contains("output was truncated", StringComparison.OrdinalIgnoreCase) ||
+                 (ex.Message.Contains("omitted required review fields", StringComparison.Ordinal) &&
+                  ex.Message.Contains(".location", StringComparison.Ordinal))))
             {
-                // Retry only complete re-generations of smaller scopes.
-                // Never parse, append, or salvage a truncated response.
+                // A multi-item scope cannot assign a missing location without
+                // guessing. Retry each smaller scope using a new, full response.
+                // Never salvage truncated or ambiguous partial findings.
                 var (left, right) = scope.Split();
                 var a = await RunScopeAsync(left, token);
                 a.AddRange(await RunScopeAsync(right, token));
