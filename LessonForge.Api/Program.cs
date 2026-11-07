@@ -6,10 +6,21 @@ using LessonForge.Api.Persistence;
 using LessonForge.Api.Runs;
 using LessonForge.Core.Configuration;
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Source enablement lives in the committed, comments-enabled local settings,
+// not hard-coded in the workflow. No credentials belong in this file.
+// File is copied alongside the API binary for consistent local launches.
+var sourceConfiguration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.Local.json", optional: false, reloadOnChange: false)
+    .Build();
+var enabledSources = SourceSelection.Load(sourceConfiguration);
+builder.Services.AddSingleton(enabledSources);
 
 // QuestPDF Community license (free for this use).
 QuestPDF.Settings.License = LicenseType.Community;
@@ -45,6 +56,10 @@ var app = builder.Build();
 app.Logger.LogInformation(
     "LessonForge Ollama configuration: chat={ChatModel}, embeddings={EmbeddingModel}, endpoint={Endpoint}, maxOutputTokens={MaxOutputTokens}",
     llmOptions.ChatModel, llmOptions.EmbeddingModel, llmOptions.Endpoint, llmOptions.MaxOutputTokens);
+app.Logger.LogInformation("LessonForge sources enabled: {Sources}",
+    string.Join(", ", new[] { "wikipedia-text", "wikibooks-text", "usgs-earthquakes",
+        "loc-century-of-lawmaking", "gutenberg-catalog",
+        "smithsonian-openaccess-metadata" }.Where(enabledSources.IsEnabled)));
 app.UseCors(CorsPolicy);
 
 // Ensure the database exists.

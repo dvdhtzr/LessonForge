@@ -1,9 +1,10 @@
 import type { CitationRef } from '../types'
 
-type SourceKind = 'wikipedia' | 'usgs' | 'loc' | 'gutenberg' | 'smithsonian' | 'other'
+type SourceKind = 'wikipedia' | 'wikibooks' | 'usgs' | 'loc' | 'gutenberg' | 'smithsonian' | 'other'
 
 const SOURCE_TYPES: Record<SourceKind, { mark: string; name: string; category: string }> = {
   wikipedia: { mark: 'W', name: 'Wikipedia', category: 'Article' },
+  wikibooks: { mark: 'WB', name: 'Wikibooks', category: 'Instructional chapter' },
   usgs: { mark: 'USGS', name: 'USGS', category: 'Earthquake observation' },
   loc: { mark: 'LOC', name: 'Library of Congress', category: 'Catalog record' },
   gutenberg: { mark: 'PG', name: 'Project Gutenberg', category: 'Book catalog record' },
@@ -19,6 +20,7 @@ const SOURCE_TYPES: Record<SourceKind, { mark: string; name: string; category: s
 function identifySource(url: string, providerId?: string): SourceKind {
   switch (providerId) {
     case 'wikipedia-text': return 'wikipedia'
+    case 'wikibooks-text': return 'wikibooks'
     case 'usgs-earthquakes': return 'usgs'
     case 'loc-century-of-lawmaking': return 'loc'
     case 'gutenberg-catalog': return 'gutenberg'
@@ -28,6 +30,7 @@ function identifySource(url: string, providerId?: string): SourceKind {
   try {
     const host = new URL(url).hostname.toLowerCase()
     if (host === 'en.wikipedia.org') return 'wikipedia'
+    if (host === 'en.wikibooks.org') return 'wikibooks'
     if (host === 'earthquake.usgs.gov') return 'usgs'
     if (host === 'www.loc.gov') return 'loc'
     if (host === 'www.gutenberg.org') return 'gutenberg'

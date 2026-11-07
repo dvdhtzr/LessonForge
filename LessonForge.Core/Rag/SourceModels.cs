@@ -8,6 +8,9 @@ public enum SourceKind
     /// <summary>Body text of a Wikipedia article.</summary>
     WikipediaArticle,
 
+    /// <summary>Text-only instructional content from the official Wikibooks API.</summary>
+    WikibooksPage,
+
     /// <summary>A freely-fetchable external source cited by a Wikipedia article.</summary>
     Reference,
 

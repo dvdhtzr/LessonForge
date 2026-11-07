@@ -27,6 +27,9 @@
     <None Include="..\LessonForge.Api\appsettings.json" Link="Fixtures\CommittedAppsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\LessonForge.Api\appsettings.Local.json" Link="Fixtures\CommittedAppsettings.Local.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

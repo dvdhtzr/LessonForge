@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using LessonForge.Api.Persistence;
 using LessonForge.Core.Configuration;
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using LessonForge.Core.Workflow;
 using Microsoft.Agents.AI.Workflows;
 
@@ -33,6 +34,7 @@ public sealed class RunSession
 /// </summary>
 public sealed class LessonRunService(
     ClientFactory clients,
+    SourceSelection enabledSources,
     IServiceScopeFactory scopeFactory,
     ILogger<LessonRunService> logger)
 {
@@ -79,7 +81,7 @@ public sealed class LessonRunService(
         {
             await WriteAsync(session, "run", new { runId = session.RunId, interactive });
 
-            var retrieval = LessonWorkflow.CreateRetrievalService(clients);
+            var retrieval = LessonWorkflow.CreateRetrievalService(clients, sources: enabledSources);
             var progress = new Progress<string>(message =>
             {
                 logger.LogInformation("Lesson run {RunId}: research: {Message}", session.RunId, message);

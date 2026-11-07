@@ -67,6 +67,22 @@ public static class SourcePermissionGate
              !uri.Host.Equals("en.wikipedia.org", StringComparison.OrdinalIgnoreCase) ||
              rights.LicenseId != "CC-BY-SA-4.0"))
             return Deny("Wikipedia license applies only to encyclopedia article text.");
+        if (document.ProviderId == "wikibooks-text" &&
+            (document.Kind != SourceKind.WikibooksPage ||
+             !uri.Host.Equals("en.wikibooks.org", StringComparison.OrdinalIgnoreCase) ||
+             !uri.AbsolutePath.StartsWith("/wiki/", StringComparison.Ordinal) ||
+             uri.Query.Length > 0 || uri.Fragment.Length > 0 ||
+             !string.Equals(
+                 Uri.UnescapeDataString(uri.AbsolutePath["/wiki/".Length..]).Replace('_', ' '),
+                 document.CanonicalId, StringComparison.Ordinal) ||
+             document.CanonicalId.Contains(':') &&
+                 (document.CanonicalId.StartsWith("Wikibooks:", StringComparison.OrdinalIgnoreCase) ||
+                  document.CanonicalId.StartsWith("User:", StringComparison.OrdinalIgnoreCase) ||
+                  document.CanonicalId.StartsWith("Talk:", StringComparison.OrdinalIgnoreCase) ||
+                  document.CanonicalId.StartsWith("File:", StringComparison.OrdinalIgnoreCase)) ||
+             rights.LicenseId != "CC-BY-SA-4.0" ||
+             rights.PolicyUrl != "https://en.wikibooks.org/wiki/Wikibooks:Copyrights"))
+            return Deny("Wikibooks permission applies only to official instructional page text from the MediaWiki API.");
         if (document.ProviderId == "usgs-earthquakes" &&
             (document.Kind != SourceKind.UsgsEarthquake ||
              !uri.Host.Equals("earthquake.usgs.gov", StringComparison.OrdinalIgnoreCase) ||
@@ -101,7 +117,7 @@ public static class SourcePermissionGate
              rights.LicenseId != "CC0-1.0" ||
              rights.PolicyUrl != "https://www.si.edu/openaccess/faq"))
             return Deny("Smithsonian rights apply only to EDAN metadata explicitly marked CC0.");
-        if (document.ProviderId is not ("wikipedia-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata"))
+        if (document.ProviderId is not ("wikipedia-text" or "wikibooks-text" or "usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata"))
             return Deny("This acquisition route has not been approved for AI ingestion.");
 
         return new SourcePermissionDecision(true, "Scoped rights review permits model input.", rights);
@@ -135,6 +151,21 @@ public static class ReviewedSourceRights
         MayRetain = true,
         MayUseInAi = true,
         // Derivative-work and share-alike obligations require additional review.
+        MayReproduceExcerpts = false,
+        MayRedistribute = false,
+        AutomatedAccessPermitted = true
+    };
+
+    public static SourceRights WikibooksPageText => new()
+    {
+        LicenseId = "CC-BY-SA-4.0",
+        PolicyUrl = "https://en.wikibooks.org/wiki/Wikibooks:Copyrights",
+        ReviewedOn = new DateOnly(2026, 11, 7),
+        Scope = "Only English Wikibooks instructional namespace-0 chapter paragraphs/headings via the official MediaWiki Action API, excluding external references, images, tables, transcluded media and wiki administration pages",
+        Attribution = "Wikibooks contributors; link to original chapter and CC BY-SA 4.0 license",
+        MayRetrieve = true,
+        MayRetain = true,
+        MayUseInAi = true,
         MayReproduceExcerpts = false,
         MayRedistribute = false,
         AutomatedAccessPermitted = true
