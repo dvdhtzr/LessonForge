@@ -117,6 +117,9 @@ public sealed class RetrievalService(
             topic, out _, out _);
         if (_options.EnableWikipedia && descriptivePossessive)
         {
+            // This is an identity-bound description, not broad fuzzy discovery.
+            // Do not expand related biography links or fetch the article again.
+            namedSubject = true;
             progress?.Report($"Resolving the subject and owner in \"{topic}\"…");
             exactArticle = await wikipedia.FindPossessiveTopicAsync(
                 topic, Math.Clamp(_options.MaxSeedArticles + 4, 1, 10), ct);
