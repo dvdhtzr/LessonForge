@@ -108,66 +108,85 @@ public sealed class RetrievalService(
         SourceDocument? exactArticle = null;
         IReadOnlyList<string> seedTitles;
 
-        // First try the requested Wikipedia title, including lowercase input.
-        // We only lock to the direct result when its canonical title actually
-        // matches the requested subject, never on fuzzy surname similarity.
-        if (_options.EnableWikipedia && TopicIdentity.IsShortTitleCandidate(topic))
+        // A possessive description is not necessarily a canonical article
+        // title: "Pablo Escobar's hippos" can legitimately resolve to an
+        // article titled "Hippopotamuses in Colombia". This path requires
+        // BOTH a focused article title and the owner's full name in the
+        // content. Exact proper-name requests retain their strict lock.
+        var descriptivePossessive = TopicIdentity.TryGetPossessiveTopic(
+            topic, out _, out _);
+        if (_options.EnableWikipedia && descriptivePossessive)
         {
-            var direct = await wikipedia.GetArticleAsync(topic, ct);
-            if (direct is not null && TopicIdentity.SameTitle(topic, direct.Title))
+            progress?.Report($"Resolving the subject and owner in \"{topic}\"…");
+            exactArticle = await wikipedia.FindPossessiveTopicAsync(
+                topic, Math.Clamp(_options.MaxSeedArticles + 4, 1, 10), ct);
+            if (exactArticle is not null)
             {
-                exactArticle = direct;
-                namedSubject = true;
-            }
-        }
-
-        if (_options.EnableWikipedia && namedSubject)
-        {
-            // Never allow a fuzzy title/surname hit to become the subject of a
-            // named-person or other explicitly named-entity lesson.
-            progress?.Report($"Looking up the exact Wikipedia subject \"{topic}\"…");
-
-            // An API title query can fail while the ordinary search still knows
-            // the exact spelling. Fall back only to EXACT matched titles, never
-            // to a different person that happens to rank highly.
-            if (exactArticle is null)
-            {
-                var titles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles + 4, ct);
-                foreach (var title in titles.Where(title => TopicIdentity.SameTitle(topic, title)))
-                {
-                    var candidate = await wikipedia.GetArticleAsync(title, ct);
-                    if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
-                    {
-                        exactArticle = candidate;
-                        break;
-                    }
-                }
-            }
-
-            if (exactArticle is null)
-            {
-                // Other reviewed providers may contain an exact named-subject
-                // record even when Wikipedia does not. Allow those as evidence,
-                // but NEVER substitute a fuzzy Wikipedia hit.
-                progress?.Report($"No exact Wikipedia article for \"{topic}\"; checking reviewed providers for a full subject match.");
-                seedTitles = [];
+                progress?.Report($"Matched verified subject article: {exactArticle.Title}");
+                seedTitles = [exactArticle.Title];
             }
             else
             {
-                // Never expand a named article into a similar person's biography.
-                progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
-                seedTitles = [exactArticle.Title];
+                progress?.Report($"No article verifies both subject and owner for \"{topic}\"; checking reviewed providers.");
+                seedTitles = [];
             }
-        }
-        else if (_options.EnableWikipedia)
-        {
-            progress?.Report($"Searching Wikipedia for \"{topic}\"…");
-            seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
         }
         else
         {
-            progress?.Report("Wikipedia disabled by local source settings; checking other enabled providers.");
-            seedTitles = [];
+            // First try the requested Wikipedia title, including lowercase input.
+            // We only lock to the direct result when its canonical title actually
+            // matches the requested subject, never on fuzzy surname similarity.
+            if (_options.EnableWikipedia && TopicIdentity.IsShortTitleCandidate(topic))
+            {
+                var direct = await wikipedia.GetArticleAsync(topic, ct);
+                if (direct is not null && TopicIdentity.SameTitle(topic, direct.Title))
+                {
+                    exactArticle = direct;
+                    namedSubject = true;
+                }
+            }
+
+            if (_options.EnableWikipedia && namedSubject)
+            {
+                // Never allow a fuzzy title/surname hit to become the subject
+                // of a named-person or other explicitly named-entity lesson.
+                progress?.Report($"Looking up the exact Wikipedia subject \"{topic}\"…");
+
+                if (exactArticle is null)
+                {
+                    var titles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles + 4, ct);
+                    foreach (var title in titles.Where(title => TopicIdentity.SameTitle(topic, title)))
+                    {
+                        var candidate = await wikipedia.GetArticleAsync(title, ct);
+                        if (candidate is not null && TopicIdentity.SameTitle(topic, candidate.Title))
+                        {
+                            exactArticle = candidate;
+                            break;
+                        }
+                    }
+                }
+
+                if (exactArticle is null)
+                {
+                    progress?.Report($"No exact Wikipedia article for \"{topic}\"; checking reviewed providers for a full subject match.");
+                    seedTitles = [];
+                }
+                else
+                {
+                    progress?.Report($"Matched exact Wikipedia subject: {exactArticle.Title}");
+                    seedTitles = [exactArticle.Title];
+                }
+            }
+            else if (_options.EnableWikipedia)
+            {
+                progress?.Report($"Searching Wikipedia for \"{topic}\"…");
+                seedTitles = await wikipedia.SearchTitlesAsync(topic, _options.MaxSeedArticles, ct);
+            }
+            else
+            {
+                progress?.Report("Wikipedia disabled by local source settings; checking other enabled providers.");
+                seedTitles = [];
+            }
         }
 
         var documents = new List<SourceDocument>();
@@ -225,8 +244,12 @@ public sealed class RetrievalService(
                 (exactArticle is null ||
                  topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2);
             if (needsExactSubject &&
-                !TopicIdentity.MentionsSubject(source.Title, topic) &&
-                !TopicIdentity.MentionsSubject(source.Text, topic))
+                !(descriptivePossessive
+                    ? TopicIdentity.TryGetPossessiveTopic(topic, out var owner, out var focus) &&
+                      TopicIdentity.FocusMatchesTitle(focus, source.Title) &&
+                      TopicIdentity.MentionsSubject(source.Text, owner)
+                    : TopicIdentity.MentionsSubject(source.Title, topic) ||
+                      TopicIdentity.MentionsSubject(source.Text, topic)))
             {
                 progress?.Report($"Skipped {source.ProviderId} metadata: no full named-subject match.");
                 continue;
