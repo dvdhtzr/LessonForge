@@ -88,6 +88,15 @@ public sealed class InitialArticlePerspectiveProbe(WikipediaClient wikipedia)
                 "Enter a topic between 3 and 120 characters to inspect an initial article.");
 
         var requested = topic.Trim();
+        if (TopicIdentity.TryGetPossessiveTopic(requested, out _, out _))
+        {
+            // The research and preflight paths use the SAME constrained
+            // resolution rule: an article must identify both the full owner
+            // and the subject concept in its title.
+            var matching = await wikipedia.FindPossessiveTopicAsync(requested, limit: 6, ct: ct);
+            return PerspectiveTopicDetector.Evaluate(matching);
+        }
+
         var direct = await wikipedia.GetArticleAsync(requested, ct);
         if (direct is not null && TopicIdentity.SameTitle(requested, direct.Title))
             return PerspectiveTopicDetector.Evaluate(direct);
