@@ -108,25 +108,38 @@ public static class LessonWorkflow
     /// creating HTTP clients with a generic, polite User-Agent. Hosts with their own DI can build the
     /// pieces directly instead.
     /// </summary>
-    public static RetrievalService CreateRetrievalService(ClientFactory clients, RetrievalOptions? options = null)
+    public static RetrievalService CreateRetrievalService(
+        ClientFactory clients, RetrievalOptions? options = null, SourceSelection? sources = null)
     {
+        var enabled = sources ?? new SourceSelection();
         var wikipedia = new WikipediaClient(CreateHttpClient());
         var fetcher = new SourceFetcher(CreateHttpClient());
         var embeddings = clients.CreateEmbeddingGenerator();
-        var registry = new SourceRegistry(
-        [
-            new UsgsEarthquakeProvider(CreateHttpClient()),
-            new LocLawmakingCatalogProvider(CreateHttpClient()),
-            new GutenbergCatalogProvider(CreateHttpClient()),
-            new SmithsonianOpenAccessMetadataProvider(CreateHttpClient())
-        ]);
-        return new RetrievalService(wikipedia, fetcher, embeddings, options, registry: registry);
+
+        var adapters = new List<IEducationalSourceProvider>();
+        if (enabled.IsEnabled("wikibooks-text"))
+            adapters.Add(new WikibooksProvider(CreateHttpClient()));
+        if (enabled.IsEnabled("usgs-earthquakes"))
+            adapters.Add(new UsgsEarthquakeProvider(CreateHttpClient()));
+        if (enabled.IsEnabled("loc-century-of-lawmaking"))
+            adapters.Add(new LocLawmakingCatalogProvider(CreateHttpClient()));
+        if (enabled.IsEnabled("gutenberg-catalog"))
+            adapters.Add(new GutenbergCatalogProvider(CreateHttpClient()));
+        if (enabled.IsEnabled("smithsonian-openaccess-metadata"))
+            adapters.Add(new SmithsonianOpenAccessMetadataProvider(CreateHttpClient()));
+
+        // An enabled flag is not a rights grant. SourcePermissionGate still
+        // checks every record before chunking, embedding and model input.
+        var registry = new SourceRegistry(adapters, wikipediaEnabled: enabled.IsEnabled("wikipedia-text"));
+        var retrievalOptions = options ?? new RetrievalOptions();
+        retrievalOptions.EnableWikipedia = enabled.IsEnabled("wikipedia-text");
+        return new RetrievalService(wikipedia, fetcher, embeddings, retrievalOptions, registry: registry);
     }
 
     private static HttpClient CreateHttpClient()
     {
         var http = new HttpClient();
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LessonForge/1.0 (educational lesson generator)");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LessonForge/1.0 (+https://github.com/dvdhtzr/LessonForge; educational research)");
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         return http;
     }
