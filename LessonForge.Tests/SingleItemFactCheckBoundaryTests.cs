@@ -55,7 +55,7 @@ public sealed class SingleItemFactCheckBoundaryTests
         var review = SingleItemFactCheckBoundary.AssignLocation(parsed, "S1");
         Assert.Equal(3, review.Flags.Count);
         Assert.All(review.Flags, finding => Assert.Equal("S1", finding.Location));
-        Assert.Equal(["Medium", "Low", "Informational"],
+        Assert.Equal(new[] { "Medium", "Low", "Informational" },
             review.Flags.Select(f => f.Severity).ToArray());
         Assert.Equal(0.65, review.CitationCoverage, precision: 8);
         Assert.Empty(AccuracyReviewPolicy.InvalidFields(
