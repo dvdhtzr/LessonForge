@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using Microsoft.EntityFrameworkCore;
 
 namespace LessonForge.Api.Persistence;
