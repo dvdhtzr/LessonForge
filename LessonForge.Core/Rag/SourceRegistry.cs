@@ -30,21 +30,21 @@ public sealed class SourceRegistry
 
     public IReadOnlyList<EducationalSourceDescriptor> Sources { get; }
 
-    public SourceRegistry(IEnumerable<IEducationalSourceProvider>? adapters = null)
+    public SourceRegistry(IEnumerable<IEducationalSourceProvider>? adapters = null, bool wikipediaEnabled = true)
     {
         _adapters = (adapters ?? []).ToArray();
         if (_adapters.Any(a => a is null) ||
             _adapters.Select(a => a.Id).Distinct(StringComparer.Ordinal).Count() != _adapters.Count)
             throw new ArgumentException("Source adapters must be nonnull with unique IDs.", nameof(adapters));
-        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata")))
-            throw new ArgumentException("Only explicitly reviewed USGS, LoC, Gutenberg and Smithsonian metadata adapters are enabled.", nameof(adapters));
+        if (_adapters.Any(a => a.Id is not ("usgs-earthquakes" or "loc-century-of-lawmaking" or "gutenberg-catalog" or "smithsonian-openaccess-metadata" or "wikibooks-text")))
+            throw new ArgumentException("Only reviewed USGS, LoC, Gutenberg, Smithsonian and Wikibooks adapters may be registered.", nameof(adapters));
 
         Sources =
         [
             new("wikipedia-text", "English Wikipedia", "https://en.wikipedia.org",
                 "MediaWiki Action API", "General reference",
                 "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
-                true, "Scoped CC BY-SA article-text AI input; external references require separate review"),
+                wikipediaEnabled, "Scoped CC BY-SA article-text AI input; external references require separate review"),
             new("usgs-earthquakes", "USGS Earthquake Hazards", "https://earthquake.usgs.gov",
                 "Official GeoJSON feed", "Seismology / Earth science",
                 "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
@@ -65,6 +65,15 @@ public sealed class SourceRegistry
                 "https://www.gutenberg.org/policy/robot_access.html",
                 _adapters.Any(a => a.Id == "gutenberg-catalog"),
                 "Public-domain CATALOG METADATA only; ebook text requires separate item rights and mirror-access review"),
+            new("wikibooks-text", "Wikibooks — Instructional Chapters", "https://en.wikibooks.org",
+                "Official MediaWiki Action API; text-only chapters", "Open textbooks and instructional materials",
+                "https://en.wikibooks.org/wiki/Wikibooks:Copyrights",
+                _adapters.Any(a => a.Id == "wikibooks-text"),
+                "CC BY-SA 4.0 text-only, commercial use subject to attribution/share-alike; no third-party media"),
+            new("openstax-text", "OpenStax — Textbook Content", "https://openstax.org",
+                "NOT INGESTED: explicit written permission required", "Peer-reviewed textbooks",
+                "https://help.openstax.org/s/article/Openstax-textbook-licensing-and-customization",
+                false, "NONCOMMERCIAL CC BY-NC-SA 4.0 plus an express generative-AI ingestion restriction; must secure written permission before adding this provider"),
             new("saylor", "Saylor University", "https://www.saylor.org",
                 "Course metadata / original materials", "University-level education",
                 "https://www.saylor.org/OpenContent", false,
