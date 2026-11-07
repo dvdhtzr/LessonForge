@@ -162,6 +162,7 @@ public static partial class LessonPlannerAgent
                 output.Citations = research.SourceInventory;
             SourceCitationValidator.RequireRetrieved(
                 output.Citations, knownSources, "Curriculum Designer");
+            SourceCitationDeduplicator.Normalize(output);
 
             // The research arriving through the RequestPort is the educator-approved
             // version, potentially edited. Preserve it over the pre-approval copy.
