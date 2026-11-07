@@ -91,6 +91,8 @@ public static partial class LessonPlannerAgent
                     fact.Citations, knownSources, "Educator-approved research fact");
             SourceCitationValidator.RequireRetrieved(
                 research.SourceInventory, knownSources, "Research source inventory");
+            // First validate every model/educator reference, then remove repeats.
+            SourceCitationDeduplicator.Normalize(research);
 
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
