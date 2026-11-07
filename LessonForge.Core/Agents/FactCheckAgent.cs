@@ -25,7 +25,7 @@ public static partial class FactCheckAgent
 
         Return a SMALL JSON object: flags, citation_coverage, notes.
         Each flag: id="" (host assigns it), claim (short focal concept),
-        issue (why it matters), severity, category, location, recommendation
+        issue (why it matters), severity (REQUIRED on every flag), category, location, recommendation
         (specific educator action), evidence (brief source support or limitations;
         empty string if none). Use exact S#/Q# target IDs, or GENERAL.
         Category MUST be one of: factual_accuracy, missing_citation,
@@ -37,7 +37,9 @@ public static partial class FactCheckAgent
         tested concept never taught (review before use); Medium = meaningful
         omission or qualification affecting comprehension/fairness; Low = minor
         wording/citation improvement; Informational = optional, not a defect.
-        Severity is a judgment, not a confidence score.
+        Severity is a judgment, not a confidence score. Every finding MUST
+        include an explicit "severity" value from High, Medium, Low, or
+        Informational. Never omit severity or infer a default for a finding.
 
         ONE finding per root issue. A quiz question testing an untaught concept
         warrants assessment_alignment at Q#, NOT duplicate section warnings.
@@ -248,10 +250,13 @@ public static partial class FactCheckAgent
             {evidence}
 
             Return ONLY JSON with flags, citation_coverage, notes, using the required
-            structured finding fields and severity rubric. For EVERY flag, include
-            an explicit "location" set to the EXACT S#/Q# identifier of the
-            affected TARGET ITEM above, or "GENERAL" for a truly global finding.
-            Never omit location, even when the claim names the target already.
+            structured finding fields and severity rubric. EVERY flag MUST contain
+            "severity" as exactly "High", "Medium", "Low", or "Informational",
+            chosen using the rubric (do not omit or assume a default).
+            For EVERY flag, include an explicit "location" set to the EXACT S#/Q#
+            identifier of the affected TARGET ITEM above, or "GENERAL" for a
+            truly global finding. Never omit location, even when the claim names
+            the target already.
             Include empty flags if no issues found. Keep notes to one short sentence.
             No rewritten content.
             """;
