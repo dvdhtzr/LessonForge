@@ -29,7 +29,8 @@ npm-debug.log*
 .env.*
 !.env.example
 appsettings.Development.json
-appsettings.Local.json
+# LessonForge.Api/appsettings.Local.json intentionally tracks source switches only.
+# Do not place credentials in that file.
 secrets.json
 
 # OS / editors
