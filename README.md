@@ -221,6 +221,18 @@ provide an exact match, other rights-reviewed providers may contribute only
 records that explicitly name the full requested subject. For two-part named
 topics, surname-only catalog matches are excluded even if Wikipedia matches.
 
+**Descriptive possessive topics are different from exact names.** For
+example, **Pablo Escobar's Hippos** is a description, not necessarily an
+article title. Wikipedia's relevant article is **Hippopotamuses in Colombia**.
+LessonForge now uses a bounded official API search for the owner's full name
+and the subject, and admits a differently named article only when its
+**title identifies the requested subject** and its **text names the entire
+owner**. A biography that merely mentions the owner's hippos is not
+automatically accepted as the focused research source. This is a
+general rule for possessive descriptions, not a hard-coded Escobar alias.
+It is also used by the initial-article differing-perspectives preview.
+Exact named-person searches (including Carmen Carrozza) remain strict.
+
 The Research Librarian also requires named-topic summaries to identify the
 requested subject. If a valid JSON response describes a different subject,
 it gets **one evidence-grounded, summary-only regeneration**, preserving the
