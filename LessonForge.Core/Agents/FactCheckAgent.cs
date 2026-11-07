@@ -150,6 +150,11 @@ public static partial class FactCheckAgent
                         SHA256.HashData(Encoding.UTF8.GetBytes(s.Text)))
                 }).ToList();
 
+            // An educator may have supplied duplicate links at either approval
+            // gate. Do not change their lesson text or the verified findings,
+            // but persist each distinct cited document only once per list.
+            SourceCitationDeduplicator.Normalize(output);
+
             state.CurrentStep = 5;
             await context.QueueStateUpdateAsync(LessonStateShared.Key, state, scopeName: LessonStateShared.Scope);
             return output;

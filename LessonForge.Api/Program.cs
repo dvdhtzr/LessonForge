@@ -52,6 +52,15 @@ builder.Services.AddScoped<LessonStore>();
 
 builder.Services.AddSingleton<LessonRunService>();
 
+// A short, anonymous preview of the first rights-eligible Wikipedia article.
+// It uses no Ollama calls, embeddings or third-party scraping.
+builder.Services.AddHttpClient("perspective-preview", http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(12);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "LessonForge/1.0 (+https://github.com/dvdhtzr/LessonForge; educational research)");
+});
+
 var app = builder.Build();
 app.Logger.LogInformation(
     "LessonForge Ollama configuration: chat={ChatModel}, embeddings={EmbeddingModel}, endpoint={Endpoint}, maxOutputTokens={MaxOutputTokens}",
@@ -69,6 +78,38 @@ using (var scope = app.Services.CreateScope())
 }
 
 var api = app.MapGroup("/api/lessons");
+
+// Article-based perspective recommendation, separate from the optional
+// full Perspective Analyst. It is advisory, never automatically opts a user in.
+api.MapGet("/perspectives-signal", async (
+    string? topic, SourceSelection sources, IHttpClientFactory httpClients,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(topic) || topic.Trim().Length is < 3 or > 120)
+        return Results.BadRequest(new { message = "Enter a topic of 3–120 characters." });
+
+    if (!sources.IsEnabled("wikipedia-text"))
+        return Results.Ok(PerspectiveTopicSignal.Unavailable(
+            "Wikipedia is disabled in local source settings; article-based preview is unavailable."));
+
+    try
+    {
+        var probe = new InitialArticlePerspectiveProbe(
+            new WikipediaClient(httpClients.CreateClient("perspective-preview")));
+        return Results.Ok(await probe.CheckAsync(topic, ct));
+    }
+    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+    {
+        return Results.Ok(PerspectiveTopicSignal.Unavailable(
+            "The article preview timed out; optional analysis remains available manually."));
+    }
+    catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
+    {
+        // Source/provider failures do not block lesson creation or infer a debate.
+        return Results.Ok(PerspectiveTopicSignal.Unavailable(
+            "The article could not be inspected; optional analysis remains available manually."));
+    }
+});
 
 // Start a generation run and stream Server-Sent Events: run → stage* → gate* → complete → done.
 api.MapPost("/generate", async (HttpContext ctx, LessonRequest request, bool? interactive, LessonRunService runs) =>

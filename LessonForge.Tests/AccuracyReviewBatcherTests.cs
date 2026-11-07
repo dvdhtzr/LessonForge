@@ -104,6 +104,46 @@ public sealed class AccuracyReviewBatcherTests
     }
 
     [Fact]
+    public async Task FactCheckS3_MissingLocationGetsOneBoundedRegeneration()
+    {
+        var attempts = 0;
+        var result = await AccuracyReviewBatcher.RunAsync(
+            Plan(3), Quiz(1), (scope, _) =>
+            {
+                if (scope.Label == "S3" && ++attempts == 1)
+                    throw new InvalidOperationException(
+                        "FactCheck S3 returned valid JSON but omitted required review fields. " +
+                        "Missing or invalid fields: flags[0].location, flags[1].location. " +
+                        "The result was rejected rather than treating an empty payload as successful.");
+                return Task.FromResult(Review(scope.Label.Split(',')[0].Trim(), 0.5));
+            });
+
+        Assert.Equal(2, attempts);
+        Assert.Contains(result.Flags, f => f.Location == "S3");
+    }
+
+    [Fact]
+    public async Task FactCheckS3_PersistentMissingLocationsFailsClosedAfterOneRetry()
+    {
+        var attempts = 0;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(Plan(3), Quiz(1), (scope, _) =>
+            {
+                if (scope.Label == "S3")
+                {
+                    attempts++;
+                    throw new InvalidOperationException(
+                        "FactCheck S3 returned valid JSON but omitted required review fields. " +
+                        "Missing or invalid fields: flags[0].location, flags[1].location.");
+                }
+                return Task.FromResult(Review(scope.Label.Split(',')[0].Trim(), 0.5));
+            }));
+
+        Assert.Equal(2, attempts);
+        Assert.Contains("flags[0].location", error.Message);
+    }
+
+    [Fact]
     public async Task TruncatedSingleItem_FailsClosedRatherThanSavingPartialReview()
     {
         var calls = new List<string>();

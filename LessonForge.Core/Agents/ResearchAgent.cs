@@ -36,7 +36,8 @@ public static partial class ResearchAgent
           NEVER stop mid-sentence or leave a hanging preposition.
         - grounded_facts: 8-10 concise, one-sentence teachable facts. Each fact MUST have a
           "citations" (plural) ARRAY of 1-2 objects with "title" and "url", copied from
-          the supplied supporting SOURCE excerpts. Never use a singular "citation" field.
+          the supplied supporting SOURCE excerpts. Do not repeat a URL within one
+          citations array. Never use a singular "citation" field.
         - queries_used: an empty array (the application supplies its actual queries).
         - source_inventory: an empty array (the application supplies its verified source inventory).
         Keep topic_summary to exactly one sentence. Minimize verbosity; complete the entire JSON
@@ -180,6 +181,7 @@ public static partial class ResearchAgent
             // perspectives from the factual Research Librarian stage.
             output.Perspectives = null;
             output.SourceInventory = RagPrompt.InventoryCitations(session);
+            SourceCitationDeduplicator.Normalize(output);
             if (output.QueriesUsed.Count == 0)
                 output.QueriesUsed = queries.ToList();
 

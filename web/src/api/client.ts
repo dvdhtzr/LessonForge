@@ -7,9 +7,21 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** A conservative recommendation from one Wikipedia article, not a factual verdict. */
+export interface PerspectiveSignal {
+  suggested: boolean
+  status: 'suggested' | 'not_suggested' | 'unavailable'
+  reason: string
+  sourceTitle: string
+  sourceUrl: string
+}
+
 export const api = {
   list: () => fetch('/api/lessons').then(json<LessonSummary[]>),
   get: (id: number) => fetch(`/api/lessons/${id}`).then(json<StoredLesson>),
+  perspectivesSignal: (topic: string, signal?: AbortSignal) =>
+    fetch(`/api/lessons/perspectives-signal?topic=${encodeURIComponent(topic)}`, { signal })
+      .then(json<PerspectiveSignal>),
 
   submitGate: async (runId: string, requestId: string, approved: boolean, payload?: unknown): Promise<void> => {
     const res = await fetch(`/api/lessons/gate/${runId}`, {

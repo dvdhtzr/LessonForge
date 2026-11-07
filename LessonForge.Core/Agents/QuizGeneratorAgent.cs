@@ -39,7 +39,8 @@ public static partial class QuizGeneratorAgent
         - "correct_index": a zero-based integer pointing at the correct option
         - "explanation": a short factual explanation supporting the correct answer
         - "citations": a nonempty array of objects with "title" and "url", copied from
-          AVAILABLE SOURCES in the prompt (one strong citation per question is enough).
+          AVAILABLE SOURCES in the prompt (one strong citation per question is enough;
+          never repeat the same URL within one question).
 
         Do not use alternative top-level keys such as "quiz", "assessment", "items",
         or "multiple_choice_questions". Finish the entire JSON object. No markdown.
@@ -92,6 +93,7 @@ public static partial class QuizGeneratorAgent
                     "QuizGenerator cannot verify citations without the retrieval index.");
             var citations = plan.Citations.Count > 0 ? plan.Citations : state.Research?.SourceInventory ?? new();
             SourceCitationValidator.RequireRetrieved(citations, knownSources, "Educator-approved lesson");
+            SourceCitationDeduplicator.NormalizeInPlace(citations);
             var citationList = string.Join("\n", citations.Select(c => $" - {c.Title}: {c.Url}"));
             var approvedPerspectives = state.Research?.Perspectives;
             if (request.ExplorePerspectives && approvedPerspectives is null)
@@ -132,6 +134,7 @@ public static partial class QuizGeneratorAgent
             foreach (var question in output.Questions)
                 SourceCitationValidator.RequireRetrieved(
                     question.Citations, knownSources, "Assessment question");
+            SourceCitationDeduplicator.Normalize(output);
 
             // The plan arriving through the RequestPort is the educator-approved
             // version, potentially edited. The final Accuracy Editor must see it.

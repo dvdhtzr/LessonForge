@@ -36,7 +36,8 @@ public static partial class LessonPlannerAgent
           activities (array of 1-2 actionable strings), duration_minutes (integer).
         - vocabulary: an array of objects with term and definition strings.
         - materials: an array of strings.
-        - citations: an array of objects with title and url strings.
+        - citations: an array of objects with title and url strings, each distinct URL
+          appearing only once in this list.
 
         IMPORTANT: The top-level "sections" array must be nonempty. Do not rename it to
         "lesson", "outline", "content", "chapters" or "lesson_sections". Every section
@@ -91,6 +92,8 @@ public static partial class LessonPlannerAgent
                     fact.Citations, knownSources, "Educator-approved research fact");
             SourceCitationValidator.RequireRetrieved(
                 research.SourceInventory, knownSources, "Research source inventory");
+            // First validate every model/educator reference, then remove repeats.
+            SourceCitationDeduplicator.Normalize(research);
 
             var gradeBand = GradeBands.ForAge(request.AudienceAge);
 
@@ -160,6 +163,7 @@ public static partial class LessonPlannerAgent
                 output.Citations = research.SourceInventory;
             SourceCitationValidator.RequireRetrieved(
                 output.Citations, knownSources, "Curriculum Designer");
+            SourceCitationDeduplicator.Normalize(output);
 
             // The research arriving through the RequestPort is the educator-approved
             // version, potentially edited. Preserve it over the pre-approval copy.

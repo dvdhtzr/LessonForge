@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using LessonForge.Core.Dto;
+using LessonForge.Core.Rag;
 using Microsoft.EntityFrameworkCore;
 
 namespace LessonForge.Api.Persistence;
@@ -65,6 +66,9 @@ public sealed class LessonStore(LessonDbContext db)
 
         var request = JsonSerializer.Deserialize<LessonRequest>(record.RequestJson, s_json) ?? new LessonRequest();
         var result = JsonSerializer.Deserialize<VerifiedLessonOutput>(record.ResultJson, s_json) ?? new VerifiedLessonOutput();
+        // Render/export historical lessons cleanly without modifying persisted
+        // JSON or requiring a lesson regeneration or database migration.
+        SourceCitationDeduplicator.Normalize(result);
         return new StoredLesson(record.Id, record.Topic, record.AudienceAge, record.CreatedAt, request, result);
     }
 }
