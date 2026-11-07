@@ -59,6 +59,10 @@ public static class AccuracyReviewBatcher
             .ToArray();
     }
 
+    private static bool IsMissingLocationFailure(InvalidOperationException ex)
+        => ex.Message.Contains("omitted required review fields", StringComparison.OrdinalIgnoreCase) &&
+           ex.Message.Contains(".location", StringComparison.OrdinalIgnoreCase);
+
     public static async Task<FactCheckReviewOutput> RunAsync(
         LessonPlanOutput plan, QuizOutput quiz,
         Func<Scope, CancellationToken, Task<FactCheckReviewOutput>> run,
@@ -100,8 +104,7 @@ public static class AccuracyReviewBatcher
             catch (InvalidOperationException ex) when (
                 scope.ItemCount > 1 &&
                 (ex.Message.Contains("output was truncated", StringComparison.OrdinalIgnoreCase) ||
-                 (ex.Message.Contains("omitted required review fields", StringComparison.Ordinal) &&
-                  ex.Message.Contains(".location", StringComparison.Ordinal))))
+                 IsMissingLocationFailure(ex)))
             {
                 // A multi-item scope cannot assign a missing location without
                 // guessing. Retry each smaller scope using a new, full response.
@@ -110,6 +113,17 @@ public static class AccuracyReviewBatcher
                 var a = await RunScopeAsync(left, token);
                 a.AddRange(await RunScopeAsync(right, token));
                 return a;
+            }
+            catch (InvalidOperationException ex) when (
+                scope.ItemCount == 1 && IsMissingLocationFailure(ex))
+            {
+                // Belt-and-suspenders recovery when a local model or an older
+                // provider path omits location despite explicit schema/prompt
+                // guidance. The existing parser should normally restore this
+                // from the host-selected S#/Q#; if it still fails, regenerate
+                // this one scope ONCE with the same verified evidence.
+                // Never turn missing fields into an empty successful review.
+                review = await run(scope, token);
             }
 
             var invalid = AccuracyReviewPolicy.InvalidFields(
