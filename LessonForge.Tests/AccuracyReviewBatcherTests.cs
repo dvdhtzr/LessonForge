@@ -61,6 +61,49 @@ public sealed class AccuracyReviewBatcherTests
     }
 
     [Fact]
+    public async Task AmbiguousTwoItemMissingLocations_ReplaysAsSingleItemScopes()
+    {
+        var calls = new List<string>();
+        var review = await AccuracyReviewBatcher.RunAsync(
+            Plan(2), Quiz(1),
+            (scope, _) =>
+            {
+                calls.Add(scope.Label);
+                if (scope.ItemCount > 1)
+                    throw new InvalidOperationException(
+                        "FactCheck S1, S2 returned valid JSON but omitted required review fields. " +
+                        "Missing or invalid fields: flags[0].location, flags[1].location. " +
+                        "The result was rejected rather than treating an empty payload as successful.");
+
+                return Task.FromResult(Review(scope.Label, 0.5));
+            });
+
+        Assert.Equal(new[] { "S1, S2", "S1", "S2", "Q1" }, calls);
+        Assert.Equal(new[] { "S1", "S2", "Q1" },
+            review.Flags.Select(f => f.Location).ToArray());
+        Assert.Equal(0.5, review.CitationCoverage, precision: 8);
+    }
+
+    [Fact]
+    public async Task MissingLocationOnSingleItem_StillFailsIfNotHostRestored()
+    {
+        var calls = new List<string>();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(
+                Plan(1), Quiz(1),
+                (scope, _) =>
+                {
+                    calls.Add(scope.Label);
+                    var review = Review(scope.Label, 0.5);
+                    review.Flags[0].Location = "";
+                    return Task.FromResult(review);
+                }));
+
+        Assert.Contains("flags[0].location", error.Message);
+        Assert.Equal(new[] { "S1" }, calls);
+    }
+
+    [Fact]
     public async Task TruncatedSingleItem_FailsClosedRatherThanSavingPartialReview()
     {
         var calls = new List<string>();
