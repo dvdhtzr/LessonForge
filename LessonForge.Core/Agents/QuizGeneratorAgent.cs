@@ -39,7 +39,8 @@ public static partial class QuizGeneratorAgent
         - "correct_index": a zero-based integer pointing at the correct option
         - "explanation": a short factual explanation supporting the correct answer
         - "citations": a nonempty array of objects with "title" and "url", copied from
-          AVAILABLE SOURCES in the prompt (one strong citation per question is enough).
+          AVAILABLE SOURCES in the prompt (one strong citation per question is enough;
+          never repeat the same URL within one question).
 
         Do not use alternative top-level keys such as "quiz", "assessment", "items",
         or "multiple_choice_questions". Finish the entire JSON object. No markdown.
