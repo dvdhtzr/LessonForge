@@ -1,6 +1,5 @@
 using LessonForge.Core.Agents;
 using LessonForge.Core.Dto;
-using System.Text.Json;
 using Xunit;
 
 namespace LessonForge.Tests;
