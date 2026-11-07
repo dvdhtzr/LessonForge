@@ -243,9 +243,10 @@ public sealed class RetrievalService(
             // A full two-word named topic is a strong identity signal. Do not
             // ingest catalog records matching only a surname or first name,
             // even when their provider's relevance score was high.
-            var needsExactSubject = namedSubject &&
-                (exactArticle is null ||
-                 topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2);
+            var needsExactSubject = descriptivePossessive ||
+                (namedSubject &&
+                 (exactArticle is null ||
+                  topic.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length == 2));
             if (needsExactSubject &&
                 !(descriptivePossessive
                     ? TopicIdentity.TryGetPossessiveTopic(topic, out var owner, out var focus) &&
