@@ -175,7 +175,7 @@ public static class StructuredAgentOutput
                     {
                         var location = rawLocation.GetString() ?? "";
                         var canonicalLocation = location == "GENERAL" ||
-                            (location.Length >= 2 && location[0] is 'S' or 'Q' &&
+                            (location.Length >= 2 && (location[0] is 'S' or 'Q') &&
                              int.TryParse(location.AsSpan(1), out var num) && num > 0 &&
                              location == $"{location[0]}{num}");
                         if (canonicalLocation &&
