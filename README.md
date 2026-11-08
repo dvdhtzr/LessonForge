@@ -1,5 +1,7 @@
 # LessonForge
 
+[![CI](https://github.com/dvdhtzr/LessonForge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvdhtzr/LessonForge/actions/workflows/ci.yml)
+
 A local-first app that turns a **topic + target audience age** into a **structured lesson plan and
 a citation-backed multiple-choice quiz**, grounded in rights-eligible sources retrieved
 through a local RAG index (Wikipedia articles, Wikibooks instructional chapters,
@@ -513,8 +515,8 @@ and model memory usage if generation still fails.
 
 ## Validating locally (required before merging)
 
-LessonForge uses **local verification** while GitHub Actions is unavailable. On a development
-machine with the .NET 10 SDK, Node.js and npm, run the complete gate before merging a PR.
+The same checks that run in CI can be run locally before pushing. On a development
+machine with the .NET 10 SDK, Node.js and npm, run the complete gate before opening a PR.
 The unit tests use fixtures/fakes; they do not need a running Ollama server or live Wikipedia.
 Dependency restore/install may still require internet access.
 
@@ -563,12 +565,18 @@ to inspect the original JSON. The API logs fact/statement/citation counts withou
 private research content. A failed approval POST leaves the review dialog open rather than
 silently losing the decision.
 
-## Hosted CI
+## Continuous integration
 
-GitHub Actions CI is temporarily disabled because of an account billing issue. Local
-verification is the merge gate until hosted CI is restored. Record local check results
-in the pull request. If GitHub branch protection or a ruleset requires a legacy CI
-status check, remove that requirement in GitHub repository settings separately.
+Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+on GitHub-hosted runners, in two parallel jobs:
+
+- **.NET build & test** — restores, builds the solution in Release, and runs the full
+  xUnit suite on the .NET 10 SDK. The tests use fixtures/fakes, so no Ollama server or
+  live network source is required.
+- **Web lint, type-check & build** — `npm ci`, then `oxlint`, then `tsc` + `vite build`.
+
+The badge at the top of this README reflects the latest `main` run. The local scripts
+described above mirror the CI gate so the same checks can be run before pushing.
 
 ## Endpoints
 
