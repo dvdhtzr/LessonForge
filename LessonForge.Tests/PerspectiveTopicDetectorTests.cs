@@ -145,6 +145,48 @@ public sealed class PerspectiveTopicDetectorTests
         Assert.Equal(2, handler.Calls); // One direct attempt and one exact-title search.
     }
 
+    private sealed class EscobarTopicHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken ct)
+        {
+            var q = Uri.UnescapeDataString(request.RequestUri!.Query);
+            var json = q.Contains("list=search", StringComparison.Ordinal)
+                ? """
+                  {"query":{"search":[
+                    {"title":"Pablo Escobar"},
+                    {"title":"Hippopotamuses in Colombia"}
+                  ]}}
+                  """
+                : q.Contains("titles=Hippopotamuses in Colombia", StringComparison.Ordinal)
+                    ? """
+                      {"query":{"pages":{"123":{
+                        "title":"Hippopotamuses in Colombia",
+                        "canonicalurl":"https://en.wikipedia.org/wiki/Hippopotamuses_in_Colombia",
+                        "extract":"Hippopotamuses were kept by Pablo Escobar in Colombia. Conservationists debated how to manage them after they escaped. The resulting invasive animal population raised ethical concerns and controversy."
+                      }}}}
+                      """
+                    : """{"query":{"pages":{"-1":{"missing":true}}}}""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    [Fact]
+    public async Task PossessiveTopicPreviewFollowsSameVerifiedSubjectResolutionAsResearch()
+    {
+        var preview = new InitialArticlePerspectiveProbe(
+            new WikipediaClient(new HttpClient(new EscobarTopicHandler())));
+
+        var result = await preview.CheckAsync("Pablo Escobar's Hippos");
+
+        Assert.True(result.Suggested);
+        Assert.Equal("Hippopotamuses in Colombia", result.SourceTitle);
+        Assert.Equal("https://en.wikipedia.org/wiki/Hippopotamuses_in_Colombia", result.SourceUrl);
+    }
+
     [Fact]
     public async Task EmptyTopicDoesNotIssueNetworkRequests()
     {

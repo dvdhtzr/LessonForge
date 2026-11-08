@@ -114,6 +114,140 @@ public sealed class NamedSubjectRetrievalTests
             new RetrievalOptions { MaxSeedArticles = 2, MaxLinkedArticles = 4 },
             registry: new SourceRegistry(catalog is null ? [] : [catalog]));
 
+    private sealed class PossessiveWikipediaHandler : HttpMessageHandler
+    {
+        public int SearchRequests { get; private set; }
+        public int BiographyRequests { get; private set; }
+        public int SubjectRequests { get; private set; }
+        public int LinkedRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken ct)
+        {
+            var query = Uri.UnescapeDataString(request.RequestUri!.Query);
+            string json;
+            if (query.Contains("list=search", StringComparison.Ordinal))
+            {
+                SearchRequests++;
+                // The person biography ranks above the subject article.
+                json = """
+                    {"query":{"search":[
+                      {"title":"Pablo Escobar"},
+                      {"title":"Hippopotamuses in Colombia"},
+                      {"title":"Hippos in another country"}
+                    ]}}
+                    """;
+            }
+            else if (query.Contains("prop=extracts", StringComparison.Ordinal))
+            {
+                if (query.Contains("titles=Hippopotamuses in Colombia", StringComparison.Ordinal))
+                {
+                    SubjectRequests++;
+                    json = """
+                        {"query":{"pages":{"22":{
+                          "title":"Hippopotamuses in Colombia",
+                          "canonicalurl":"https://en.wikipedia.org/wiki/Hippopotamuses_in_Colombia",
+                          "extract":"Hippopotamuses are an introduced species in Colombia. Pablo Escobar brought four hippopotamuses to his private zoo in Colombia in the 1980s. After his death, the animals escaped and multiplied. Conservationists debate how Colombia should manage the hippos because they can disrupt the ecology of nearby rivers."
+                        }}}}
+                        """;
+                }
+                else if (query.Contains("titles=Pablo Escobar&", StringComparison.Ordinal))
+                {
+                    BiographyRequests++;
+                    json = """
+                        {"query":{"pages":{"21":{
+                          "title":"Pablo Escobar",
+                          "canonicalurl":"https://en.wikipedia.org/wiki/Pablo_Escobar",
+                          "extract":"Pablo Escobar was a Colombian drug lord who also owned hippos in his private zoo. The hippos later escaped, but this article covers his entire life."
+                        }}}}
+                        """;
+                }
+                else
+                    json = """{"query":{"pages":{"-1":{"missing":true}}}}""";
+            }
+            else if (query.Contains("prop=links", StringComparison.Ordinal) ||
+                     query.Contains("prop=extlinks", StringComparison.Ordinal))
+            {
+                LinkedRequests++;
+                json = """{"query":{"pages":{}}}""";
+            }
+            else
+                json = """{"query":{"pages":{}}}""";
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    [Theory]
+    [InlineData("Pablo Escobar's Hippos")]
+    [InlineData("Pablo Escobar’s Hippos")]
+    [InlineData("Pablo Escobar's hippos")]
+    public async Task PossessiveTopicResolvesSubjectNotOwnerBiography(string topic)
+    {
+        var wiki = new PossessiveWikipediaHandler();
+        var session = new RetrievalService(
+            new WikipediaClient(new HttpClient(wiki)),
+            new SourceFetcher(new HttpClient(new ForbiddenExternalFetch())),
+            new FakeEmbeddingGenerator(),
+            new RetrievalOptions { MaxSeedArticles = 2, MaxLinkedArticles = 4 },
+            registry: new SourceRegistry())
+            .BuildAsync(topic);
+
+        var source = Assert.Single((await session).Sources);
+        Assert.Equal("Hippopotamuses in Colombia", source.Title);
+        Assert.Equal("https://en.wikipedia.org/wiki/Hippopotamuses_in_Colombia", source.Url);
+        Assert.Equal(1, wiki.SearchRequests);
+        Assert.Equal(1, wiki.SubjectRequests);
+        Assert.Equal(0, wiki.BiographyRequests);
+        Assert.Equal(0, wiki.LinkedRequests);
+        Assert.True(SourcePermissionGate.Evaluate(source).Allowed);
+    }
+
+    [Theory]
+    [InlineData("Pablo Esquivar's Hippos")]
+    [InlineData("Pablo Escobar's Saxophones")]
+    public async Task PossessiveTopicRejectsWrongOwnerOrWrongSubject(string topic)
+    {
+        var wiki = new PossessiveWikipediaHandler();
+        var retrieval = new RetrievalService(
+            new WikipediaClient(new HttpClient(wiki)),
+            new SourceFetcher(new HttpClient(new ForbiddenExternalFetch())),
+            new FakeEmbeddingGenerator(),
+            new RetrievalOptions { MaxSeedArticles = 2, MaxLinkedArticles = 4 },
+            registry: new SourceRegistry());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => retrieval.BuildAsync(topic));
+        Assert.Contains("requested named subject", error.Message);
+        Assert.Equal(0, wiki.BiographyRequests);
+        Assert.Equal(0, wiki.LinkedRequests);
+    }
+
+    [Fact]
+    public void DescriptivePossessiveTopicRequiresBothOwnerAndConcept()
+    {
+        Assert.True(TopicIdentity.TryGetPossessiveTopic(
+            "Pablo Escobar's Hippos", out var owner, out var focus));
+        Assert.Equal("Pablo Escobar", owner);
+        Assert.Equal("Hippos", focus);
+        Assert.False(TopicIdentity.TryGetPossessiveTopic(
+            "Carmen Carrozza", out _, out _));
+        Assert.True(TopicIdentity.FocusMatchesTitle("Hippos", "Hippopotamuses in Colombia"));
+        Assert.False(TopicIdentity.FocusMatchesTitle("Hippos", "Pablo Escobar"));
+        Assert.True(TopicIdentity.SummaryIdentifiesSubject(
+            "Pablo Escobar’s hippopotamuses spread into Colombia's rivers.",
+            "Pablo Escobar's Hippos"));
+        Assert.False(TopicIdentity.SummaryIdentifiesSubject(
+            "Pablo Escobar was a drug lord in Colombia.",
+            "Pablo Escobar's Hippos"));
+        Assert.False(TopicIdentity.SummaryIdentifiesSubject(
+            "Pablo Esquivar's hippos spread into the rivers.",
+            "Pablo Escobar's Hippos"));
+    }
+
     [Theory]
     [InlineData("Carmen Carrozza")]
     [InlineData("carmen carrozza")]

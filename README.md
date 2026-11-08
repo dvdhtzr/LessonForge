@@ -120,11 +120,22 @@ Perspective Analyst and educator-review gate, which may correctly
 conclude that no credible competing interpretations are established.
 Neither the heuristic nor a checkbox asserts equally credible sides.
 
-The Accuracy Editor also performs **one bounded full regeneration** of
-a single S#/Q# scope if its structured response still omits finding
-locations after the host-based recovery. It retains existing strict
-validation; repeated failure still stops rather than silently reporting
-successful fact checking.
+The Accuracy Editor uses two complementary strict schemas. It first
+reviews two items together when possible. A multi-item response with
+missing/invalid required fields is discarded and **regenerated as separate
+single-item reviews**. The single-item schema **does not contain a
+`location` field**: the application assigns the host-selected `S#`/`Q#`
+to every finding, instead of relying on Ollama to repeat it. If an
+out-of-contract model response explicitly claims a different canonical
+item ID, the response is rejected rather than misattributed.
+
+All substantive finding fields remain mandatory: every flag must include an
+explicit severity of `High`, `Medium`, `Low`, or `Informational`, and a
+valid category, claim, issue and educator recommendation. No missing severity
+is inferred from the legacy DTO's `Medium` default. A single-item audit
+gets at most **one full retry** if it returns incomplete fields; persistent
+failures still fail closed. No invalid report becomes an empty successful
+fact-check and no lesson, quiz, answer, or approved citation is rewritten.
 
 ### Duplicate citation handling
 
@@ -217,6 +228,18 @@ similar-name Wikipedia result as a fallback. When Wikipedia cannot
 provide an exact match, other rights-reviewed providers may contribute only
 records that explicitly name the full requested subject. For two-part named
 topics, surname-only catalog matches are excluded even if Wikipedia matches.
+
+**Descriptive possessive topics are different from exact names.** For
+example, **Pablo Escobar's Hippos** is a description, not necessarily an
+article title. Wikipedia's relevant article is **Hippopotamuses in Colombia**.
+LessonForge now uses a bounded official API search for the owner's full name
+and the subject, and admits a differently named article only when its
+**title identifies the requested subject** and its **text names the entire
+owner**. A biography that merely mentions the owner's hippos is not
+automatically accepted as the focused research source. This is a
+general rule for possessive descriptions, not a hard-coded Escobar alias.
+It is also used by the initial-article differing-perspectives preview.
+Exact named-person searches (including Carmen Carrozza) remain strict.
 
 The Research Librarian also requires named-topic summaries to identify the
 requested subject. If a valid JSON response describes a different subject,

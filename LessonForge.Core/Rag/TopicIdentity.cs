@@ -51,6 +51,108 @@ public static class TopicIdentity
     }
 
     /// <summary>
+    /// A topic such as "Pablo Escobar's hippos" names an owner and an
+    /// associated subject, NOT necessarily an encyclopedia article with
+    /// exactly that title. Treat such descriptions differently from an exact
+    /// person-name request such as "Carmen Carrozza".
+    /// </summary>
+    public static bool TryGetPossessiveTopic(
+        string? topic, out string owner, out string focus)
+    {
+        owner = "";
+        focus = "";
+        if (string.IsNullOrWhiteSpace(topic)) return false;
+
+        var words = topic.Trim().Replace('’', '\'')
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length is < 2 or > 7) return false;
+
+        var possessiveAt = Array.FindIndex(words, w =>
+            w.EndsWith("'s", StringComparison.OrdinalIgnoreCase));
+        if (possessiveAt < 0 || possessiveAt > 3 ||
+            possessiveAt == words.Length - 1)
+            return false;
+
+        var ownerWords = words.Take(possessiveAt + 1).ToArray();
+        ownerWords[^1] = ownerWords[^1][..^2];
+        if (ownerWords.Any(w => w.Length == 0 || !char.IsUpper(w[0]) ||
+            !w.All(ch => char.IsLetter(ch) || ch is '-' or '\'')))
+            return false;
+
+        var focusWords = words.Skip(possessiveAt + 1).ToArray();
+        if (focusWords.Any(w => w.Length == 0 ||
+            !w.All(ch => char.IsLetter(ch) || ch is '-' or '\'')))
+            return false;
+
+        owner = string.Join(' ', ownerWords);
+        focus = string.Join(' ', focusWords);
+        return true;
+    }
+
+    /// <summary>
+    /// Resolve a descriptive possessive topic only to a page whose TITLE
+    /// describes the requested subject and whose TEXT names its owner.
+    /// Matching the owner alone (e.g. a biography) is not sufficient.
+    /// No title-specific, person-specific or animal-specific exceptions.
+    /// </summary>
+    public static bool MatchesPossessiveArticle(string topic, SourceDocument? article)
+    {
+        if (!TryGetPossessiveTopic(topic, out var owner, out var focus) ||
+            article is null || article.ProviderId != "wikipedia-text" ||
+            article.Kind != SourceKind.WikipediaArticle ||
+            !SourcePermissionGate.Evaluate(article).Allowed)
+            return false;
+
+        return (SameTitle(topic, article.Title) ||
+                FocusMatchesTitle(focus, article.Title)) &&
+               (MentionsSubject(article.Text, owner) ||
+                SameTitle(topic, article.Title));
+    }
+
+    /// <summary>
+    /// Word-level title match with conservative inflection tolerance:
+    /// "hippos" shares a substantive "hippo" prefix with
+    /// "hippopotamuses", but "car" never matches "carpet".
+    /// </summary>
+    public static bool FocusMatchesTitle(string focus, string title)
+    {
+        var requestWords = SplitWords(focus)
+            .Where(w => w.Length >= 3 && w is not ("the" or "and" or "for" or "with"))
+            .ToArray();
+        var titleWords = SplitWords(title).ToArray();
+        if (requestWords.Length == 0) return false;
+
+        return requestWords.All(request =>
+        {
+            var stem = request.EndsWith('s') && request.Length > 3
+                ? request[..^1] : request;
+            return titleWords.Any(word =>
+                word == request || word == stem ||
+                (stem.Length >= 4 && word.StartsWith(stem, StringComparison.Ordinal)));
+        });
+    }
+
+    /// <summary>
+    /// A summary may write "Pablo Escobar's hippos" as "Pablo Escobar's
+    /// hippopotamuses". Require the complete named owner and the subject
+    /// concept; never accept a similar surname or just the owner.
+    /// </summary>
+    public static bool SummaryIdentifiesSubject(string summary, string topic)
+    {
+        if (!TryGetPossessiveTopic(topic, out var owner, out var focus))
+            return MentionsSubject(summary, topic);
+
+        return MentionsSubject(summary, owner) &&
+               FocusMatchesTitle(focus, summary);
+    }
+
+    private static IEnumerable<string> SplitWords(string input)
+        => System.Text.RegularExpressions.Regex.Split(
+            input.Normalize(NormalizationForm.FormKC).ToLowerInvariant(),
+            @"[^\p{L}\p{Nd}]+")
+            .Where(word => word.Length > 0);
+
+    /// <summary>
     /// Full-phrase, word-boundary check; never treat "Carroza" or "Carmen"
     /// alone as evidence of "Carmen Carrozza".
     /// </summary>
@@ -59,9 +161,10 @@ public static class TopicIdentity
         if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(topic))
             return false;
 
-        var content = text.Normalize(NormalizationForm.FormKC).Replace('_', ' ');
+        var content = text.Normalize(NormalizationForm.FormKC).Replace('_', ' ').Replace('’', '\'');
         var phrase = string.Join(' ', topic.Normalize(NormalizationForm.FormKC)
-            .Replace('_', ' ').Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            .Replace('_', ' ').Replace('’', '\'')
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (phrase.Length == 0) return false;
 
         for (var start = 0; start < content.Length;)
