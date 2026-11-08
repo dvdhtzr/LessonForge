@@ -22,23 +22,22 @@ export default function NewLesson() {
   const perspectiveOptionVisible = perspectiveSignal?.suggested === true || manualPerspectiveOption
 
   function changeTopic(next: string) {
+    const normalized = next.trim()
     setTopic(next)
     // A recommendation for one article must never carry over to another.
     setExplorePerspectives(false)
     setManualPerspectiveOption(false)
     setPerspectiveSignal(null)
+    // Reset derived UI from the event that caused the change, so the effect
+    // below only ever updates state asynchronously (after the debounce/fetch).
+    setCheckingPerspective(normalized.length >= 3 && normalized.length <= 120)
   }
 
   useEffect(() => {
     const normalized = topic.trim()
-    if (normalized.length < 3 || normalized.length > 120) {
-      setPerspectiveSignal(null)
-      setCheckingPerspective(false)
-      return
-    }
+    if (normalized.length < 3 || normalized.length > 120) return
 
     const controller = new AbortController()
-    setCheckingPerspective(true)
     const timer = window.setTimeout(() => {
       void api.perspectivesSignal(normalized, controller.signal)
         .then((result) => {
