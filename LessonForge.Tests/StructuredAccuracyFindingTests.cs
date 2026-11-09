@@ -41,6 +41,57 @@ public sealed class StructuredAccuracyFindingTests
         Assert.Equal(severity, Assert.Single(result.Flags).Severity);
     }
 
+    [Fact]
+    public void OmittedSeverity_DoesNotInheritMediumDefaultFromDto()
+    {
+        // Even though VerificationFlag.Severity initializes to "Medium" for
+        // DTO compatibility, the model must explicitly choose a severity.
+        const string incomplete = """
+            {
+              "flags": [
+                {"claim":"Complete finding","issue":"Check evidence","severity":"Low",
+                 "category":"missing_citation","location":"Q7",
+                 "recommendation":"Add a reference."},
+                {"claim":"Omitted severity","issue":"Check another answer",
+                 "category":"assessment_alignment","location":"Q8",
+                 "recommendation":"Correct the assessment."}
+              ],
+              "citation_coverage":0.5,
+              "notes":"Review is otherwise complete."
+            }
+            """;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                incomplete, "FactCheck Q7, Q8", "stop"));
+        Assert.Contains("flags[1].severity", error.Message);
+        Assert.DoesNotContain("flags[0].severity", error.Message);
+
+        var singleError = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                incomplete, "FactCheck Q8", "stop",
+                authoritativeSingleTarget: "Q8"));
+        Assert.Contains("flags[1].severity", singleError.Message);
+    }
+
+    [Fact]
+    public void ExplicitInvalidSeverity_IsRejectedRatherThanInventingRubricValue()
+    {
+        var review = new FactCheckReviewOutput
+        {
+            Flags = [Finding(severity: "Severe")],
+            CitationCoverage = 0.5,
+            Notes = "Needs a review."
+        };
+        var json = JsonSerializer.Serialize(review, Web);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<FactCheckReviewOutput>(
+                json, "FactCheck Q1", "stop", authoritativeSingleTarget: "Q1"));
+
+        Assert.Contains("flags[0].severity", error.Message);
+    }
+
     [Theory]
     [InlineData("unknown", "category")]
     [InlineData("S0", "location")]

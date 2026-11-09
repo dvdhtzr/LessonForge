@@ -139,9 +139,10 @@ public static class StructuredAgentOutput
             }
         }
 
-        // The review DTO initializes flags to [] and coverage to zero. Both are
-        // potentially valid values, so additionally demand explicit model keys.
-        if (value is FactCheckReviewOutput)
+        // The review DTO initializes flags to [] and coverage to zero; each
+        // VerificationFlag also defaults Severity to "Medium". Those defaults
+        // must NEVER turn omitted model fields into successful fact-checking.
+        if (value is FactCheckReviewOutput or SingleItemFactCheckOutput)
         {
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement;
@@ -152,6 +153,57 @@ public static class StructuredAgentOutput
                 {
                     if (!missing.Contains(field))
                         missing.Add(field);
+                }
+            }
+
+            // For a one-item review, the host assigns the location. A model
+            // need not output it at all. But if it explicitly names a DIFFERENT
+            // canonical S#/Q# target (or GENERAL), reject rather than silently
+            // attributing another item's finding to the host target.
+            if (value is SingleItemFactCheckOutput &&
+                authoritativeSingleTarget is not null &&
+                root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("flags", out var scopedFlags) &&
+                scopedFlags.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                foreach (var flag in scopedFlags.EnumerateArray())
+                {
+                    if (flag.ValueKind == JsonValueKind.Object &&
+                        flag.TryGetProperty("location", out var rawLocation) &&
+                        rawLocation.ValueKind == JsonValueKind.String)
+                    {
+                        var location = rawLocation.GetString() ?? "";
+                        var canonicalLocation = location == "GENERAL" ||
+                            (location.Length >= 2 && (location[0] is 'S' or 'Q') &&
+                             int.TryParse(location.AsSpan(1), out var num) && num > 0 &&
+                             location == $"{location[0]}{num}");
+                        if (canonicalLocation &&
+                            !string.Equals(location, authoritativeSingleTarget, StringComparison.Ordinal))
+                            missing.Add($"flags[{index}].location (outside {authoritativeSingleTarget})");
+                    }
+                    index++;
+                }
+            }
+
+            // Explicit severity is required on every finding. Only the model
+            // can apply the educator-facing rubric; the host must not silently
+            // use the DTO's "Medium" default for a missing JSON property.
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("flags", out var flags) &&
+                flags.ValueKind == JsonValueKind.Array)
+            {
+                var flagIndex = 0;
+                foreach (var flag in flags.EnumerateArray())
+                {
+                    if (flag.ValueKind == JsonValueKind.Object &&
+                        !flag.TryGetProperty("severity", out _))
+                    {
+                        var path = $"flags[{flagIndex}].severity";
+                        if (!missing.Contains(path))
+                            missing.Add(path);
+                    }
+                    flagIndex++;
                 }
             }
         }
@@ -192,7 +244,7 @@ public static class StructuredAgentOutput
 
             var kind = value switch
             {
-                FactCheckReviewOutput => "review fields",
+                FactCheckReviewOutput or SingleItemFactCheckOutput => "review fields",
                 ResearchSummaryRepairOutput => "research summary",
                 _ => "lesson content or citation arrays"
             };
@@ -296,6 +348,10 @@ public static class StructuredAgentOutput
 
             case FactCheckReviewOutput review:
                 missing.AddRange(AccuracyReviewPolicy.InvalidFields(review));
+                break;
+
+            case SingleItemFactCheckOutput singleItem:
+                missing.AddRange(SingleItemFactCheckBoundary.InvalidFields(singleItem));
                 break;
 
             case VerifiedLessonOutput verified:

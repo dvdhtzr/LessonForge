@@ -6,9 +6,10 @@ namespace LessonForge.Core.Agents;
 
 /// <summary>
 /// Reviews every lesson section and quiz question in small, independently validated
-/// scopes. A length-exhausted multi-item response or one omitting a finding
-/// location is retried as smaller scopes; a single-item audit can restore only
-/// the host-known missing location, while all other invalid findings fail.
+/// scopes. A truncated multi-item response or one with incomplete review fields
+/// is regenerated as independent smaller scopes. A one-item scope gets at most
+/// one full retry for missing/invalid required review fields; persistent failures
+/// fail closed. Only missing locations may be restored from host-owned context.
 /// </summary>
 public static class AccuracyReviewBatcher
 {
@@ -59,9 +60,12 @@ public static class AccuracyReviewBatcher
             .ToArray();
     }
 
-    private static bool IsMissingLocationFailure(InvalidOperationException ex)
+    // Only errors from the strict structured-review parser are eligible.
+    // This handles severity/category/recommendation/etc. as well as location;
+    // it never assigns a missing value or accepts a partial model response.
+    private static bool IsIncompleteReviewFailure(InvalidOperationException ex)
         => ex.Message.Contains("omitted required review fields", StringComparison.OrdinalIgnoreCase) &&
-           ex.Message.Contains(".location", StringComparison.OrdinalIgnoreCase);
+           ex.Message.Contains("Missing or invalid fields:", StringComparison.OrdinalIgnoreCase);
 
     public static async Task<FactCheckReviewOutput> RunAsync(
         LessonPlanOutput plan, QuizOutput quiz,
@@ -104,25 +108,23 @@ public static class AccuracyReviewBatcher
             catch (InvalidOperationException ex) when (
                 scope.ItemCount > 1 &&
                 (ex.Message.Contains("output was truncated", StringComparison.OrdinalIgnoreCase) ||
-                 IsMissingLocationFailure(ex)))
+                 IsIncompleteReviewFailure(ex)))
             {
-                // A multi-item scope cannot assign a missing location without
-                // guessing. Retry each smaller scope using a new, full response.
-                // Never salvage truncated or ambiguous partial findings.
+                // An incomplete two-item audit cannot be trusted or repaired by
+                // guessing severity/category. Regenerate each one-item scope.
+                // Never salvage a truncated or partially invalid response.
                 var (left, right) = scope.Split();
                 var a = await RunScopeAsync(left, token);
                 a.AddRange(await RunScopeAsync(right, token));
                 return a;
             }
             catch (InvalidOperationException ex) when (
-                scope.ItemCount == 1 && IsMissingLocationFailure(ex))
+                scope.ItemCount == 1 && IsIncompleteReviewFailure(ex))
             {
-                // Belt-and-suspenders recovery when a local model or an older
-                // provider path omits location despite explicit schema/prompt
-                // guidance. The existing parser should normally restore this
-                // from the host-selected S#/Q#; if it still fails, regenerate
-                // this one scope ONCE with the same verified evidence.
-                // Never turn missing fields into an empty successful review.
+                // Regenerate this one scope ONCE from the same evidence. The
+                // model must choose a real rubric severity for each finding;
+                // the host cannot invent it. An invalid second response throws,
+                // and never becomes an empty or successful fact-check.
                 review = await run(scope, token);
             }
 

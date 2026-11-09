@@ -25,7 +25,7 @@ public static partial class FactCheckAgent
 
         Return a SMALL JSON object: flags, citation_coverage, notes.
         Each flag: id="" (host assigns it), claim (short focal concept),
-        issue (why it matters), severity, category, location, recommendation
+        issue (why it matters), severity (REQUIRED on every flag), category, location, recommendation
         (specific educator action), evidence (brief source support or limitations;
         empty string if none). Use exact S#/Q# target IDs, or GENERAL.
         Category MUST be one of: factual_accuracy, missing_citation,
@@ -37,7 +37,9 @@ public static partial class FactCheckAgent
         tested concept never taught (review before use); Medium = meaningful
         omission or qualification affecting comprehension/fairness; Low = minor
         wording/citation improvement; Informational = optional, not a defect.
-        Severity is a judgment, not a confidence score.
+        Severity is a judgment, not a confidence score. Every finding MUST
+        include an explicit "severity" value from High, Medium, Low, or
+        Informational. Never omit severity or infer a default for a finding.
 
         ONE finding per root issue. A quiz question testing an untaught concept
         warrants assessment_alignment at Q#, NOT duplicate section warnings.
@@ -53,7 +55,44 @@ public static partial class FactCheckAgent
         => StructuredAgentOutput.CreateSchemaAgent<FactCheckReviewOutput>(
             chatClient, AgentName, AgentInstructions, maxOutputTokens);
 
-    public sealed partial class FactCheckExecutor(AIAgent agent, RagContext rag) : Executor("FactCheck")
+    /// <summary>
+    /// Single-target auditing never asks the model to supply a location:
+    /// the workflow owns the S#/Q# identifier and binds it after validation.
+    /// Other review fields remain compulsory and model-authored.
+    /// </summary>
+    public static AIAgent CreateSingleItemAgent(IChatClient chatClient, int maxOutputTokens)
+        => StructuredAgentOutput.CreateSchemaAgent<SingleItemFactCheckOutput>(
+            chatClient, "AccuracyEditorSingleItem", """
+                You are LessonForge's skeptical Accuracy Editor. Audit only the
+                educator-approved lesson section or quiz question identified
+                in the prompt, against the provided, untrusted source excerpts.
+                Do not rewrite the lesson or add facts not supported by evidence.
+
+                Return one small JSON object with EXACT keys:
+                flags (array, [] when no substantive findings),
+                citation_coverage (number 0..1, AI estimate),
+                notes (one short, nonempty sentence with limitations).
+
+                Each flag MUST contain claim, issue, severity, category,
+                recommendation, evidence. DO NOT include a location or ID:
+                the application assigns the known review target itself.
+                severity MUST be exactly High, Medium, Low or Informational.
+                High: material factual/assessment error. Medium: meaningful
+                omission affecting comprehension/fairness. Low: minor wording
+                or citation improvement. Informational: optional suggestion.
+                category MUST be one of: factual_accuracy, missing_citation,
+                unsupported_claim, misleading_wording, missing_prerequisite,
+                instructional_gap, assessment_alignment, age_appropriateness,
+                perspective_fairness, insufficient_evidence.
+
+                Every flag needs a short concrete claim, issue and specific
+                educator action. Do not invent citations, certainty or debate.
+                Keep the entire JSON compact and complete. It is valid to
+                return flags=[] if there are no issues.
+                """, maxOutputTokens);
+
+    public sealed partial class FactCheckExecutor(
+        AIAgent agent, AIAgent singleItemAgent, RagContext rag) : Executor("FactCheck")
     {
         [MessageHandler]
         private async ValueTask<VerifiedLessonOutput> HandleAsync(
@@ -86,9 +125,10 @@ public static partial class FactCheckAgent
             }
 
             // Check ALL sections and questions, two at a time. Every batch gets its own
-            // relevant source excerpts and complete JSON validation. If a two-item
-            // batch hits the model's output limit, retry its items separately.
-            // A single-item failure still fails the stage; there is no partial audit.
+            // source excerpts and complete JSON validation. Truncated or incomplete
+            // two-item reviews are regenerated item by item. A one-item review
+            // with missing required fields gets at most one full retry; persistent
+            // failures stop the stage. No partial or invented audit results.
             var review = await AccuracyReviewBatcher.RunAsync(plan, quiz, async (scope, token) =>
             {
                 var queries = scope.Sections
@@ -116,9 +156,20 @@ public static partial class FactCheckAgent
                 var prompt = BuildScopedReviewPrompt(
                     plan, quiz, state.Research, evidence, scope, state.Request.AudienceAge);
 
+                if (scope.ItemCount == 1)
+                {
+                    // The model reports findings, NOT their location. The
+                    // host assigns the only possible target after validating
+                    // every required field. No retry can be exhausted by a
+                    // malformed or missing location from the model.
+                    var scoped = await StructuredAgentOutput.RunAsync<SingleItemFactCheckOutput>(
+                        singleItemAgent, prompt, $"FactCheck {scope.Label}", token,
+                        authoritativeSingleTarget: scope.Label);
+                    return SingleItemFactCheckBoundary.AssignLocation(scoped, scope.Label);
+                }
+
                 return await StructuredAgentOutput.RunAsync<FactCheckReviewOutput>(
-                    agent, prompt, $"FactCheck {scope.Label}", token,
-                    authoritativeSingleTarget: scope.ItemCount == 1 ? scope.Label : null);
+                    agent, prompt, $"FactCheck {scope.Label}", token);
             }, cancellationToken);
 
             // Deliberately do not trust the LLM to reconstruct or modify the approved
@@ -232,6 +283,12 @@ public static partial class FactCheckAgent
             : Short(PerspectivePrompt.ForLesson(research.Perspectives), 1300) +
               "\nCheck fairness but never manufacture opposing sides.";
 
+        var locationGuidance = scope.ItemCount == 1
+            ? "Do not include location or ID in findings. The application knows the exact item ID " +
+              "and assigns it after validating all substantive fields."
+            : "For EVERY flag, include location exactly as one of the TARGET ITEM identifiers above, " +
+              "or GENERAL for a truly global finding. Never omit it.";
+
         return $"""
             Review ONLY {scope.Label} from the approved lesson and quiz.
             Every target must be considered; do not return a review of other items.
@@ -248,10 +305,10 @@ public static partial class FactCheckAgent
             {evidence}
 
             Return ONLY JSON with flags, citation_coverage, notes, using the required
-            structured finding fields and severity rubric. For EVERY flag, include
-            an explicit "location" set to the EXACT S#/Q# identifier of the
-            affected TARGET ITEM above, or "GENERAL" for a truly global finding.
-            Never omit location, even when the claim names the target already.
+            structured finding fields and severity rubric. EVERY flag MUST contain
+            "severity" as exactly "High", "Medium", "Low", or "Informational",
+            chosen using the rubric (do not omit or assume a default).
+            {locationGuidance}
             Include empty flags if no issues found. Keep notes to one short sentence.
             No rewritten content.
             """;

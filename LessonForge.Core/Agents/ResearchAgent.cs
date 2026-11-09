@@ -169,7 +169,8 @@ public static partial class ResearchAgent
                 expectedNamedSubject: session.Sources.Any(source =>
                     source.ProviderId == "wikipedia-text" &&
                     TopicIdentity.SameTitle(request.Topic, source.Title)) ||
-                    TopicIdentity.IsExplicitNamedSubject(request.Topic)
+                    TopicIdentity.IsExplicitNamedSubject(request.Topic) ||
+                    TopicIdentity.TryGetPossessiveTopic(request.Topic, out _, out _)
                     ? request.Topic : null);
             var output = draft.ToResearchOutput();
             progress?.Report(request.ExplorePerspectives

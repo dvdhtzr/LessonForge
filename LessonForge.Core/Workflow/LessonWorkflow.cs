@@ -43,7 +43,9 @@ public static class LessonWorkflow
             : null;
         var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat, maxOutputTokens), rag);
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat, maxOutputTokens), rag);
-        var factcheck = new FactCheckAgent.FactCheckExecutor(FactCheckAgent.CreateAgent(chat, maxOutputTokens), rag);
+        var factcheck = new FactCheckAgent.FactCheckExecutor(
+            FactCheckAgent.CreateAgent(chat, maxOutputTokens),
+            FactCheckAgent.CreateSingleItemAgent(chat, maxOutputTokens), rag);
 
         // Four explicit graphs keep the standard (toggle-off) flow exactly as before.
         // The optional agent is between factual research and the existing educator

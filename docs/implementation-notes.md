@@ -95,6 +95,16 @@ its structured response still omits finding locations after the host-based recov
 existing strict validation; repeated failure still stops rather than silently reporting
 successful fact checking.
 
+### Single-item schema contract
+
+For single-item reviews the schema **does not contain a `location` field**: the application
+assigns the host-selected `S#`/`Q#` to every finding, instead of relying on Ollama to repeat it.
+If an out-of-contract model response explicitly claims a *different* canonical item ID, the
+response is rejected rather than misattributed. All substantive finding fields remain mandatory:
+every flag must include an explicit severity of `High`, `Medium`, `Low`, or `Informational`, and a
+valid category, claim, issue and educator recommendation. No missing severity is inferred from the
+legacy DTO's `Medium` default — an incomplete single-item audit fails closed.
+
 ---
 
 ## Named-subject identity protection
@@ -117,6 +127,16 @@ summary-only regeneration**, preserving the original citation-validated facts. I
 still names the wrong subject, the run stops before educator approval or lesson planning. This is
 a deterministic identity safeguard, not proof that every sentence or citation is factually
 accurate; educator review remains essential.
+
+### Descriptive possessive topics vs. exact names
+
+A possessive description is not necessarily an article title. **Pablo Escobar's Hippos**, for
+example, is a description; Wikipedia's relevant article is **Hippopotamuses in Colombia**.
+LessonForge uses a bounded official-API search for the owner's full name *and* the subject, and
+admits a differently named article only when its **title identifies the requested subject** and
+its **text names the entire owner**. A biography that merely mentions the owner's hippos is not
+automatically accepted as the focused research source. This is a general rule for possessive
+descriptions, not a hard-coded alias.
 
 ---
 

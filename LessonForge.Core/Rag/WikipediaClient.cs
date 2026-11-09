@@ -83,6 +83,43 @@ public sealed class WikipediaClient(HttpClient http)
         };
     }
 
+    /// <summary>
+    /// Find an article about a possessively described topic without requiring
+    /// its title to repeat the user's wording. Candidate title must identify
+    /// the requested subject and article text must name the full owner.
+    /// Bounded to an exact-title attempt, one official search and at most
+    /// <paramref name="limit"/> focused candidate article fetches.
+    /// </summary>
+    public async Task<SourceDocument?> FindPossessiveTopicAsync(
+        string topic, int limit = 6, CancellationToken ct = default)
+    {
+        if (!TopicIdentity.TryGetPossessiveTopic(topic, out var owner, out var focus))
+            return null;
+        if (limit is < 1 or > 10)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        var direct = await GetArticleAsync(topic, ct);
+        if (TopicIdentity.MatchesPossessiveArticle(topic, direct))
+            return direct;
+
+        // Use the ordinary MediaWiki search, not a hard-coded alias list.
+        // Filtering titles before fetching them avoids reading unrelated
+        // biographies even when they rank above the relevant article.
+        var titles = await SearchTitlesAsync($"{owner} {focus}", limit, ct);
+        foreach (var title in titles
+            .Where(t => TopicIdentity.FocusMatchesTitle(focus, t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(limit))
+        {
+            ct.ThrowIfCancellationRequested();
+            var article = await GetArticleAsync(title, ct);
+            if (TopicIdentity.MatchesPossessiveArticle(topic, article))
+                return article;
+        }
+
+        return null;
+    }
+
     /// <summary>Returns titles of other articles this article links to (namespace 0 only).</summary>
     public async Task<IReadOnlyList<string>> GetLinkedTitlesAsync(string title, int limit = 10, CancellationToken ct = default)
     {

@@ -65,7 +65,7 @@ public static class ResearchSummaryRecovery
 
         var complete = LooksComplete(draft.TopicSummary);
         var correctSubject = string.IsNullOrWhiteSpace(expectedNamedSubject) ||
-            TopicIdentity.MentionsSubject(draft.TopicSummary, expectedNamedSubject);
+            TopicIdentity.SummaryIdentifiesSubject(draft.TopicSummary, expectedNamedSubject);
         if (complete && correctSubject)
             return draft;
 
@@ -84,7 +84,7 @@ public static class ResearchSummaryRecovery
                 "Check the local model's output/context limits and try again.");
 
         if (!string.IsNullOrWhiteSpace(expectedNamedSubject) &&
-            !TopicIdentity.MentionsSubject(replacement, expectedNamedSubject))
+            !TopicIdentity.SummaryIdentifiesSubject(replacement, expectedNamedSubject))
             throw new InvalidOperationException(
                 "Research summary still did not identify the requested named subject after one targeted regeneration. " +
                 "The report was rejected rather than replacing it with a similarly named person or topic.");
