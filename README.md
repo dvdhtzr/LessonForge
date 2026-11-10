@@ -13,7 +13,9 @@ can open.
 No cloud services. No API keys. Nothing leaves your computer except the requests that fetch public,
 rights-eligible source material.
 
-![The generated lesson plan, with sources and an accuracy review](docs/images/lesson-plan.png)
+![LessonForge generating a lesson: research gate, the agent crew, and the finished quiz](docs/images/demo.gif)
+
+<sub>▶ End-to-end run — reviewing the grounded research, the live agent crew, and the finished quiz. ([higher-quality MP4](docs/images/demo.mp4))</sub>
 
 ---
 
@@ -35,9 +37,9 @@ Every claim carries a citation, and a teacher-only **source library** records th
 
 ## Screenshots
 
-| Create a lesson | Quiz with answer key |
-|---|---|
-| [![New lesson form](docs/images/new-lesson.png)](docs/images/new-lesson.png) | [![Quiz and accuracy review](docs/images/quiz-review.png)](docs/images/quiz-review.png) |
+| Create a lesson | Lesson plan & accuracy review | Quiz with answer key |
+|---|---|---|
+| [![New lesson form](docs/images/new-lesson.png)](docs/images/new-lesson.png) | [![Lesson plan, sources and accuracy review](docs/images/lesson-plan.png)](docs/images/lesson-plan.png) | [![Quiz and accuracy review](docs/images/quiz-review.png)](docs/images/quiz-review.png) |
 
 ## How it works
 
