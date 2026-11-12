@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {assess,parseFrame,argumentsFor,summary,uniquenessMetrics} from './benchmark-small-models.mjs'
+import {assess,parseFrame,argumentsFor,summary,uniquenessMetrics,collectTrace} from './benchmark-small-models.mjs'
+import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 const request={quiz_config:{question_count:1,option_count:2}}
 function lesson(){
@@ -57,4 +60,34 @@ test('verifier telemetry measures repairs but never claims educational accuracy'
  assert.match(text,/Repair attempts/)
  assert.match(text,/2 \| 1 \| 1/)
  assert.equal(uniquenessMetrics([]),null)
+})
+
+test('failed-run diagnostics retain per-option evidence and repair events',async()=>{
+ const output=await mkdtemp(path.join(os.tmpdir(),'lf-diagnostics-test-'))
+ try{
+  const dir=path.join(output,'diagnostics')
+  await mkdir(dir)
+  const runId='abcdef123456'
+  const events=[{event:'run',data:{runId}},{event:'error',data:{message:'Failed'}}]
+  const records=[
+   {schemaVersion:1,runId,sequence:1,diagnostic:{kind:'review_started',
+    questionNumber:8,attempt:'original',question:{stem:'Which birthplace?',options:['Solano','Calabria']}}},
+   {schemaVersion:1,runId,sequence:2,diagnostic:{kind:'review_result',
+    questionNumber:8,attempt:'original',review:{option_verdicts:[
+     {index:0,verdict:'defensible'},{index:1,verdict:'defensible'}]}}},
+   {schemaVersion:1,runId,sequence:3,diagnostic:{kind:'failure',
+    questionNumber:8,attempt:'replacement',failureKind:'review_invalid_or_unavailable'}}
+  ]
+  await writeFile(path.join(dir,runId+'.answer-uniqueness.jsonl'),
+   records.map(x=>JSON.stringify(x)).join('\\n')+'\\n')
+  const got=await collectTrace(output,dir,'qwen3:4b','named-subject',events)
+  assert.equal(got.records.length,3)
+  assert.match(got.diagnosticFile,/diagnostics/)
+  assert.equal(got.records[0].diagnostic.question.stem,'Which birthplace?')
+  assert.equal(got.records[1].diagnostic.review.option_verdicts[1].verdict,'defensible')
+  assert.equal(got.records[2].diagnostic.kind,'failure')
+  assert.deepEqual((await collectTrace(output,dir,'qwen3:4b','science',[])).records,[])
+ }finally{
+  await rm(output,{recursive:true,force:true})
+ }
 })
