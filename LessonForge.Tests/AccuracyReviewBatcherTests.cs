@@ -291,7 +291,7 @@ public sealed class AccuracyReviewBatcherTests
             AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(1), (scope, _) =>
             {
                 calls.Add(scope.Label);
-                return Task.FromResult(Review(scope.Label == "Q1" ? "S1" : "S1", 0.5));
+                return Task.FromResult(Review("S1", 0.5));
             }));
 
         Assert.Contains("outside Q1", exception.Message);
@@ -306,7 +306,7 @@ public sealed class AccuracyReviewBatcherTests
             AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(2), (scope, _) =>
             {
                 calls.Add(scope.Label);
-                var review = Review(scope.Label == "Q1, Q2" ? "S1" : "S1", 0.5);
+                var review = Review("S1", 0.5);
                 if (scope.Label == "Q1, Q2") review.Flags[0].Recommendation = "";
                 return Task.FromResult(review);
             }));
