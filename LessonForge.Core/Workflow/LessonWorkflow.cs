@@ -11,13 +11,13 @@ using MafWorkflow = Microsoft.Agents.AI.Workflows.Workflow;
 namespace LessonForge.Core.Workflow;
 
 // Lesson Design Crew — workflow orchestrator
-//   LessonRequest ──► Research ──► Lesson Planner ──► Quiz Generator ──► Fact-Check ──► VerifiedLessonOutput
+//   LessonRequest → Research → Lesson Planner → Quiz Generator → Answer Uniqueness → Fact-Check → VerifiedLessonOutput
 // Interactive builds insert approval gates after Research and after the Lesson Plan.
 public static class LessonWorkflow
 {
     /// <summary>The stage names, in order, for UI progress rendering.</summary>
     public static readonly IReadOnlyList<string> StageOrder =
-        ["Research", "PerspectiveAnalysis", "LessonPlanner", "QuizGenerator", "FactCheck"];
+        ["Research", "PerspectiveAnalysis", "LessonPlanner", "QuizGenerator", "AnswerUniqueness", "FactCheck"];
 
     /// <summary>
     /// Builds the lesson-design workflow. When <paramref name="interactive"/> is true, two
@@ -43,6 +43,9 @@ public static class LessonWorkflow
             : null;
         var planner = new LessonPlannerAgent.LessonPlannerExecutor(LessonPlannerAgent.CreateAgent(chat, maxOutputTokens), rag);
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat, maxOutputTokens), rag);
+        var uniqueness = new AnswerUniquenessAgent.AnswerUniquenessExecutor(
+            AnswerUniquenessAgent.CreateReviewer(chat, maxOutputTokens),
+            AnswerUniquenessAgent.CreateRepairer(chat, maxOutputTokens), rag);
         var factcheck = new FactCheckAgent.FactCheckExecutor(
             FactCheckAgent.CreateAgent(chat, maxOutputTokens),
             FactCheckAgent.CreateSingleItemAgent(chat, maxOutputTokens), rag);
@@ -55,7 +58,8 @@ public static class LessonWorkflow
             var workflow = new WorkflowBuilder(research)
                 .AddEdge(research, planner)
                 .AddEdge(planner, quiz)
-                .AddEdge(quiz, factcheck)
+                .AddEdge(quiz, uniqueness)
+                .AddEdge(uniqueness, factcheck)
                 .WithOutputFrom(factcheck)
                 .WithName("lesson-design-crew")
                 .Build();
@@ -68,7 +72,8 @@ public static class LessonWorkflow
                 .AddEdge(research, perspectives!)
                 .AddEdge(perspectives!, planner)
                 .AddEdge(planner, quiz)
-                .AddEdge(quiz, factcheck)
+                .AddEdge(quiz, uniqueness)
+                .AddEdge(uniqueness, factcheck)
                 .WithOutputFrom(factcheck)
                 .WithName("lesson-design-crew-perspectives")
                 .Build();
@@ -85,7 +90,8 @@ public static class LessonWorkflow
                 .AddEdge(approveResearch, planner)
                 .AddEdge(planner, approvePlan)
                 .AddEdge(approvePlan, quiz)
-                .AddEdge(quiz, factcheck)
+                .AddEdge(quiz, uniqueness)
+                .AddEdge(uniqueness, factcheck)
                 .WithOutputFrom(factcheck)
                 .WithName("lesson-design-crew-interactive")
                 .Build();
@@ -98,7 +104,8 @@ public static class LessonWorkflow
             .AddEdge(approveResearch, planner)
             .AddEdge(planner, approvePlan)
             .AddEdge(approvePlan, quiz)
-            .AddEdge(quiz, factcheck)
+            .AddEdge(quiz, uniqueness)
+                .AddEdge(uniqueness, factcheck)
             .WithOutputFrom(factcheck)
             .WithName("lesson-design-crew-perspectives-interactive")
             .Build();

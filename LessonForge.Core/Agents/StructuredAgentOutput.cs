@@ -349,6 +349,10 @@ public static class StructuredAgentOutput
                         missing.Add(issue);
                 break;
 
+            case AnswerUniquenessReview uniqueness:
+                missing.AddRange(AnswerUniquenessPolicy.InvalidFields(uniqueness));
+                break;
+
             case FactCheckReviewOutput review:
                 missing.AddRange(AccuracyReviewPolicy.InvalidFields(review));
                 break;
