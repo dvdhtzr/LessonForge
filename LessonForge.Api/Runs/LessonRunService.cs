@@ -80,6 +80,9 @@ public sealed class LessonRunService(
         var ct = session.Cts.Token;
         try
         {
+            // Disabled unless the benchmark explicitly sets the diagnostics
+            // directory. Files are per-run, local and flushed on each event.
+            using var trace = AnswerUniquenessTraceWriter.OpenIfEnabled(session.RunId);
             await WriteAsync(session, "run", new { runId = session.RunId, interactive });
 
             var retrieval = LessonWorkflow.CreateRetrievalService(clients, sources: enabledSources);
@@ -111,7 +114,7 @@ public sealed class LessonRunService(
 
             var (workflow, _) = LessonWorkflow.Build(
                 clients, retrieval, interactive, progress, request.ExplorePerspectives,
-                UniquenessProgress);
+                UniquenessProgress, trace?.Record);
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 
