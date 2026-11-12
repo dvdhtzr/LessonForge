@@ -114,7 +114,8 @@ public sealed class LessonRunService(
 
             var (workflow, _) = LessonWorkflow.Build(
                 clients, retrieval, interactive, progress, request.ExplorePerspectives,
-                UniquenessProgress, trace?.Record);
+                UniquenessProgress,
+                trace is null ? null : new Action<AnswerUniquenessTraceEvent>(trace.Record));
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 
