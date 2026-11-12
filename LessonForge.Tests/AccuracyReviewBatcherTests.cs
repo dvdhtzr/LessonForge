@@ -264,6 +264,76 @@ public sealed class AccuracyReviewBatcherTests
     }
 
     [Fact]
+    public async Task TwoQuestionReviewWithWrongLocation_RegeneratesEachQuestionWithoutReassigning()
+    {
+        var calls = new List<string>();
+        var result = await AccuracyReviewBatcher.RunAsync(
+            Plan(1), Quiz(3), (scope, _) =>
+            {
+                calls.Add(scope.Label);
+                if (scope.Label == "Q1, Q2")
+                    return Task.FromResult(Review("Q3", 0.8));
+
+                return Task.FromResult(Review(scope.Label, 0.5));
+            });
+
+        Assert.Equal(new[] { "S1", "Q1, Q2", "Q1", "Q2", "Q3" }, calls);
+        Assert.Equal(new[] { "S1", "Q1", "Q2", "Q3" },
+            result.Flags.Select(flag => flag.Location).ToArray());
+        Assert.Equal(0.5, result.CitationCoverage, precision: 8);
+    }
+
+    [Fact]
+    public async Task SingleQuestionWithExplicitWrongLocation_FailsClosedWithoutRetry()
+    {
+        var calls = new List<string>();
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(1), (scope, _) =>
+            {
+                calls.Add(scope.Label);
+                return Task.FromResult(Review(scope.Label == "Q1" ? "S1" : "S1", 0.5));
+            }));
+
+        Assert.Contains("outside Q1", exception.Message);
+        Assert.Equal(new[] { "S1", "Q1" }, calls);
+    }
+
+    [Fact]
+    public async Task OutOfScopeLocationMixedWithMissingFindingField_FailsClosed()
+    {
+        var calls = new List<string>();
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AccuracyReviewBatcher.RunAsync(Plan(1), Quiz(2), (scope, _) =>
+            {
+                calls.Add(scope.Label);
+                var review = Review(scope.Label == "Q1, Q2" ? "S1" : "S1", 0.5);
+                if (scope.Label == "Q1, Q2") review.Flags[0].Recommendation = "";
+                return Task.FromResult(review);
+            }));
+
+        Assert.Contains("recommendation", exception.Message);
+        Assert.Equal(new[] { "S1", "Q1, Q2" }, calls);
+    }
+
+    [Fact]
+    public void ScopedQuizReviewPrompt_ExplicitlyChecksAllOptionsForMultipleValidAnswers()
+    {
+        var plan = Plan(1);
+        var quiz = Quiz(1);
+        quiz.Questions[0].Stem = "Where was the musician born?";
+        quiz.Questions[0].Options = ["Solano, Reggio di Calabria", "Calabria", "Boston", "Paris"];
+        var scope = AccuracyReviewBatcher.Plan(plan, quiz).Last();
+        var prompt = FactCheckAgent.BuildScopedReviewPrompt(
+            plan, quiz, null, "SOURCE EXCERPT", scope, audienceAge: 14);
+
+        Assert.Contains("ALL", prompt);
+        Assert.Contains("more than one option", prompt);
+        Assert.Contains("overlapping", prompt);
+        Assert.Contains("assessment_alignment", prompt);
+        Assert.Contains("incorrect alternative merely for being false", prompt);
+    }
+
+    [Fact]
     public async Task WrongScopeOrMalformedFinding_IsRejectedBeforeAggregation()
     {
         var wrongScope = await Assert.ThrowsAsync<InvalidOperationException>(() =>
