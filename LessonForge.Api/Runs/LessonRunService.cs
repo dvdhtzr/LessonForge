@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
 using LessonForge.Api.Persistence;
+using LessonForge.Core.Agents;
 using LessonForge.Core.Configuration;
 using LessonForge.Core.Dto;
 using LessonForge.Core.Rag;
@@ -79,6 +80,9 @@ public sealed class LessonRunService(
         var ct = session.Cts.Token;
         try
         {
+            // Disabled unless the benchmark explicitly sets the diagnostics
+            // directory. Files are per-run, local and flushed on each event.
+            using var trace = AnswerUniquenessTraceWriter.OpenIfEnabled(session.RunId);
             await WriteAsync(session, "run", new { runId = session.RunId, interactive });
 
             var retrieval = LessonWorkflow.CreateRetrievalService(clients, sources: enabledSources);
@@ -88,8 +92,30 @@ public sealed class LessonRunService(
                 var payload = JsonSerializer.Serialize(new { stage = "Research", message }, s_json);
                 session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
             });
+            // The verifier reports only host-owned question numbers and status
+            // codes. Never stream source text, student-facing content or LLM
+            // reasoning into the event log.
+            void UniquenessProgress(AnswerUniquenessProgress update)
+            {
+                var message = update.Status switch
+                {
+                    "accepted" => $"Question {update.QuestionNumber} passed independent answer review.",
+                    "repair_requested" => $"Question {update.QuestionNumber} needs one replacement.",
+                    "repaired" => $"Question {update.QuestionNumber} replacement passed review.",
+                    "unresolved" => $"Question {update.QuestionNumber} remains unresolved.",
+                    _ => $"Question {update.QuestionNumber} review status changed."
+                };
+                var payload = JsonSerializer.Serialize(new {
+                    stage = "AnswerUniqueness", message,
+                    questionNumber = update.QuestionNumber, status = update.Status
+                }, s_json);
+                session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
+            }
+
             var (workflow, _) = LessonWorkflow.Build(
-                clients, retrieval, interactive, progress, request.ExplorePerspectives);
+                clients, retrieval, interactive, progress, request.ExplorePerspectives,
+                UniquenessProgress,
+                trace is null ? null : new Action<AnswerUniquenessTraceEvent>(trace.Record));
 
             await using var run = await InProcessExecution.RunStreamingAsync(workflow, request);
 

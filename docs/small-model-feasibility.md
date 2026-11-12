@@ -22,7 +22,11 @@ The harness publishes the API to its own temporary location, changes only the pu
 
 - `summary.md`: status, elapsed time, source count, findings and AI-estimated coverage.
 - `report.json`: model digests, machine info, stage events, persisted lesson and structural diagnostics.
-- `logs/`: API output per model.
+- `logs/`: API output per model (without question/evidence trace payloads).
+- `diagnostics/<run-id>.answer-uniqueness.jsonl`: **opt-in, local-only** per-run, append-and-flush records. Each captures the original/replacement question, each model verdict, bounded source excerpt with reference URLs, accepted/rejected status, or a coded failure. These records survive a failed Answer Verifier run.
+- `answer-uniqueness-diagnostics.json`: consolidated copy, indexed by model, topic case and run ID for easier human review. The main `report.json` has only its relative trace path and record count.
+
+The benchmark alone enables trace collection by setting `LESSONFORGE_EVAL_DIAGNOSTICS_DIR` on its isolated API child process. Normal LessonForge runs do **not** create these files unless that environment variable is set explicitly. Trace data is capped at 256 events and 1.5 MB per run, with bounded question text, individual choices, reviewer reasons and source evidence. The writer flushes after every event, so partial traces survive rejected model responses and most interrupted runs; no raw provider errors or raw full model responses are recorded. Files contain lesson text and potentially private user input: **keep them local, inspect before uploading, and never commit them to Git**. Trace records are diagnostic, not proof of a uniquely correct answer.
 
 A STRUCTURAL_PASS is **not** a factual-accuracy pass. Human review must check the answers, grade calibration, citation entailment, teaching usefulness, review false negatives, and actual source text. Source retrieval varies between runs; separate model failures from network/source failures. The harness exercises `interactive=false`, so educators' approval gates need an additional acceptance test.
 
