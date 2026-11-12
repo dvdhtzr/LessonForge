@@ -52,6 +52,8 @@ public sealed class AnswerOptionVerdict
 /// a hard limit of one replacement and re-review per problematic question.
 /// No automatic acceptance based only on the model's claimed confidence.
 /// </summary>
+public sealed record AnswerUniquenessProgress(int QuestionNumber, string Status);
+
 public static class AnswerUniquenessPolicy
 {
     public static IReadOnlyList<string> InvalidFields(AnswerUniquenessReview review)
@@ -116,7 +118,8 @@ public static class AnswerUniquenessPolicy
         QuizOutput original, int optionCount,
         Func<int, QuizQuestion, CancellationToken, Task<AnswerUniquenessReview>> review,
         Func<int, QuizQuestion, AnswerUniquenessReview, CancellationToken, Task<QuizQuestion>> repair,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<int, string>? onStatus = null)
     {
         ArgumentNullException.ThrowIfNull(original);
         ArgumentNullException.ThrowIfNull(review);
@@ -133,9 +136,14 @@ public static class AnswerUniquenessPolicy
             var problem = Problem(first, question);
             if (problem is null)
             {
+                onStatus?.Invoke(i, "accepted");
                 completed.Add(question);
                 continue;
             }
+
+            // Host-owned status only: never publish model-generated question
+            // text, evidence, rationales or verdict details as progress data.
+            onStatus?.Invoke(i, "repair_requested");
 
             // Exactly one replacement is allowed. Validate all required DTO
             // fields, option count, answer index and duplicate alternatives
@@ -149,8 +157,12 @@ public static class AnswerUniquenessPolicy
             var second = await review(i, replacement, ct);
             var remaining = Problem(second, replacement);
             if (remaining is not null)
+            {
+                onStatus?.Invoke(i, "unresolved");
                 throw new InvalidOperationException(
                     $"Answer uniqueness Q{i + 1} remains unresolved after one replacement: {remaining}.");
+            }
+            onStatus?.Invoke(i, "repaired");
             completed.Add(replacement);
         }
 
@@ -255,7 +267,8 @@ public static partial class AnswerUniquenessAgent
         => value.Length <= max ? value : value[..max] + "…";
 
     public sealed partial class AnswerUniquenessExecutor(
-        AIAgent reviewer, AIAgent repairer, RagContext rag) : Executor("AnswerUniqueness")
+        AIAgent reviewer, AIAgent repairer, RagContext rag,
+        Action<AnswerUniquenessProgress>? progress = null) : Executor("AnswerUniqueness")
     {
         [MessageHandler]
         private async ValueTask<QuizOutput> HandleAsync(
@@ -302,7 +315,8 @@ public static partial class AnswerUniquenessAgent
                         SourceCitationValidator.RequireRetrieved(item.Citations, knownSources,
                             $"Answer uniqueness replacement Q{index + 1}");
                     return replacement.Questions[0];
-                }, cancellationToken);
+                }, cancellationToken,
+                (index, status) => progress?.Invoke(new AnswerUniquenessProgress(index + 1, status)));
 
             // Only validated final questions may advance. The original quiz and
             // educator-approved lesson remain unchanged if any question fails.
