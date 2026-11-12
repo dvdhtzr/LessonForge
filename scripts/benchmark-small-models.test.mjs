@@ -79,7 +79,7 @@ test('failed-run diagnostics retain per-option evidence and repair events',async
     questionNumber:8,attempt:'replacement',failureKind:'review_invalid_or_unavailable'}}
   ]
   await writeFile(path.join(dir,runId+'.answer-uniqueness.jsonl'),
-   records.map(x=>JSON.stringify(x)).join('\\n')+'\\n')
+   records.map(x=>JSON.stringify(x)).join('\n')+'\n')
   const got=await collectTrace(output,dir,'qwen3:4b','named-subject',events)
   assert.equal(got.records.length,3)
   assert.match(got.diagnosticFile,/diagnostics/)
