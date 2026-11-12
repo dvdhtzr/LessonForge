@@ -81,7 +81,8 @@ function uniquenessMetrics(events){
 }
 function summary(r){
  const lines=['# Small-model evaluation','','Result: STRUCTURAL_PASS is not evidence of factual accuracy.',
-  'Interactive educator approval gates and optional perspectives are not covered.','',
+  'Interactive educator approval gates and optional perspectives are not covered.',
+  'Evaluation-only question/option/evidence traces are in answer-uniqueness-diagnostics.json; review locally before sharing.','',
   '| Model | Case | Status | Seconds | Verified Q | Repair attempts | Repairs accepted | Sources | Flags | AI-estimated coverage |',
   '|---|---|---|---:|---:|---:|---:|---:|---:|---:|']
  for(const x of r.runs){
@@ -92,6 +93,21 @@ function summary(r){
    a.estimatedCoverage==null?'—':Math.round(a.estimatedCoverage*100)+'%'].join(' | ')+' |')
  }
  return lines.join('\n')+'\n'
+}
+// Each model and case has an independent, durable per-run JSONL file.
+ // The separate consolidated artifact makes failed runs easy to inspect
+ // without copying complete educational content into the benchmark report.
+async function collectTrace(outputDir,diagnosticsDir,model,caseId,events){
+ const runId=events.find(e=>e.event==='run')?.data?.runId??null
+ const file=runId?path.join(diagnosticsDir,runId+'.answer-uniqueness.jsonl'):null
+ let records=[]
+ if(file){
+  try{
+   const raw=await readFile(file,'utf8')
+   records=raw.split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line))
+  }catch(e){if(e.code!=='ENOENT')throw e}
+ }
+ return {model,caseId,runId,diagnosticFile:records.length?path.relative(outputDir,file):null,records}
 }
 async function requireFreePort(port){
  await new Promise((resolve,reject)=>{
@@ -166,7 +182,10 @@ async function main(){
   if(!installed.some(m=>m.name===model))throw Error('Missing model; run: ollama pull '+model)
  await mkdir(o.output,{recursive:true})
  const published=path.join(o.output,'api-publish'),logsDir=path.join(o.output,'logs')
+ const diagnosticsDir=path.join(o.output,'diagnostics')
  await mkdir(logsDir,{recursive:true})
+ await mkdir(diagnosticsDir,{recursive:true})
+ const diagnosticReport={schemaVersion:1,notice:'Opt-in local educational evaluation data; may contain user input and source excerpts. Review before sharing.',runs:[]}
  console.log('Publishing isolated API to '+published)
  await command('dotnet',['publish',path.join(root,'LessonForge.Api','LessonForge.Api.csproj'),
   '-c','Release','-o',published],root)
@@ -188,14 +207,22 @@ async function main(){
    await writeFile(configPath,JSON.stringify(cfg,null,2))
    const logs=[]
    const p=spawn('dotnet',[path.join(published,'LessonForge.Api.dll'),'--urls',base],
-    {cwd:published,env:{...process.env,ASPNETCORE_ENVIRONMENT:'Production'},stdio:['ignore','pipe','pipe']})
+    {cwd:published,env:{...process.env,ASPNETCORE_ENVIRONMENT:'Production',
+     LESSONFORGE_EVAL_DIAGNOSTICS_DIR:diagnosticsDir},stdio:['ignore','pipe','pipe']})
    for(const stream of [p.stdout,p.stderr])stream.on('data',b=>{logs.push(String(b));if(logs.length>3000)logs.shift()})
    try{
     await ready(base,p)
     for(const c of (o.suite==='full'?cases:cases.slice(0,1))){
      console.log('Model '+model+', topic '+c.topic)
      const run=await evaluate(base,c,o.minutes)
-     report.runs.push({model,caseId:c.id,request:c,...run})
+     const trace=await collectTrace(o.output,diagnosticsDir,model,c.id,run.events)
+     diagnosticReport.runs.push(trace)
+     report.runs.push({model,caseId:c.id,request:c,...run,
+      diagnosticFile:trace.diagnosticFile,diagnosticRecords:trace.records.length})
+     // Persist after EACH case, including failed runs; the raw JSONL records
+     // already survive independently even if the API or benchmark stops.
+     await writeFile(path.join(o.output,'answer-uniqueness-diagnostics.json'),
+      JSON.stringify(diagnosticReport,null,2))
      await writeFile(path.join(o.output,'report.json'),JSON.stringify(report,null,2))
      await writeFile(path.join(o.output,'summary.md'),summary(report))
      console.log('  '+run.status+' ('+run.seconds+'s) '+(run.error||''))
@@ -216,9 +243,10 @@ async function main(){
   await writeFile(path.join(o.output,'report.json'),JSON.stringify(report,null,2))
   await writeFile(path.join(o.output,'summary.md'),summary(report))
  }
- console.log('Reports: '+path.join(o.output,'summary.md')+' and report.json')
+ console.log('Reports: '+path.join(o.output,'summary.md')+
+  ', report.json and answer-uniqueness-diagnostics.json')
  if(report.runs.some(r=>r.status!=='STRUCTURAL_PASS'))process.exitCode=2
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))
  main().catch(e=>{console.error(e);process.exitCode=1})
-export {assess,parseFrame,argumentsFor,summary,uniquenessMetrics}
+export {assess,parseFrame,argumentsFor,summary,uniquenessMetrics,collectTrace}
