@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {assess,parseFrame,argumentsFor,summary} from './benchmark-small-models.mjs'
+import {assess,parseFrame,argumentsFor,summary,uniquenessMetrics} from './benchmark-small-models.mjs'
 
 const request={quiz_config:{question_count:1,option_count:2}}
 function lesson(){
@@ -41,4 +41,20 @@ test('arguments reject invalid suites, models and ports',()=>{
 test('summary labels the limit of structural validation',()=>{
  const text=summary({runs:[]})
  assert.match(text,/not evidence of factual accuracy/)
+})
+
+test('verifier telemetry measures repairs but never claims educational accuracy',()=>{
+ const events=[
+  {event:'progress',data:{stage:'Research',message:'ignored'}},
+  {event:'progress',data:{stage:'AnswerUniqueness',questionNumber:1,status:'accepted'}},
+  {event:'progress',data:{stage:'AnswerUniqueness',questionNumber:2,status:'repair_requested'}},
+  {event:'progress',data:{stage:'AnswerUniqueness',questionNumber:2,status:'repaired'}}
+ ]
+ assert.deepEqual(uniquenessMetrics(events),
+  {verified:2,repairAttempts:1,repairsAccepted:1,unresolved:0})
+ const text=summary({runs:[{model:'qwen3:4b',caseId:'science',
+  status:'STRUCTURAL_PASS',seconds:90,assessment:{},uniqueness:uniquenessMetrics(events)}]})
+ assert.match(text,/Repair attempts/)
+ assert.match(text,/2 \\| 1 \\| 1/)
+ assert.equal(uniquenessMetrics([]),null)
 })
