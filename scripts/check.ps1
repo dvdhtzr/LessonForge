@@ -21,5 +21,9 @@ foreach ($script in Get-ChildItem -Path $PSScriptRoot -Filter '*.ps1') {
 & (Join-Path $PSScriptRoot 'test.ps1')
 & (Join-Path $PSScriptRoot 'web.ps1')
 
+Write-Host '==> Benchmark runner model-free tests'
+& node --test (Join-Path $PSScriptRoot 'benchmark-small-models.test.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Benchmark runner tests failed.' }
+
 Write-Host ''
 Write-Host '==> All local checks passed.'
