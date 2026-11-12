@@ -1,4 +1,5 @@
 // Copyright (c) 2026 — LessonForge. Original work.
+using System.Text.Json;
 using LessonForge.Core.Dto;
 
 namespace LessonForge.Core.Agents;
@@ -17,3 +18,28 @@ public sealed record AnswerUniquenessTraceEvent(
     string? Evidence = null,
     string? Reason = null,
     string? FailureKind = null);
+
+/// <summary>
+/// Best-effort, shape-only preview of a model answer before strict validation.
+/// Never treats this partial payload as valid: it exists solely so a failed
+/// benchmark can show which specific answers or verdicts the model attempted.
+/// Malformed JSON is not stored raw.
+/// </summary>
+public static class AnswerUniquenessTracePreview
+{
+    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
+
+    public static AnswerUniquenessReview? Review(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try { return JsonSerializer.Deserialize<AnswerUniquenessReview>(raw, s_json); }
+        catch (JsonException) { return null; }
+    }
+
+    public static QuizQuestion? Replacement(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try { return JsonSerializer.Deserialize<QuizOutput>(raw, s_json)?.Questions?.FirstOrDefault(); }
+        catch (JsonException) { return null; }
+    }
+}
