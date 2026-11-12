@@ -27,7 +27,8 @@ public static class LessonWorkflow
     /// </summary>
     public static (MafWorkflow Workflow, RagContext Rag) Build(
         ClientFactory clients, RetrievalService retrieval, bool interactive,
-        IProgress<string>? researchProgress = null, bool explorePerspectives = false)
+        IProgress<string>? researchProgress = null, bool explorePerspectives = false,
+        Action<AnswerUniquenessProgress>? uniquenessProgress = null)
     {
         var chat = clients.CreateChatClient();
         var rag = new RagContext();
@@ -45,7 +46,7 @@ public static class LessonWorkflow
         var quiz = new QuizGeneratorAgent.QuizGeneratorExecutor(QuizGeneratorAgent.CreateAgent(chat, maxOutputTokens), rag);
         var uniqueness = new AnswerUniquenessAgent.AnswerUniquenessExecutor(
             AnswerUniquenessAgent.CreateReviewer(chat, maxOutputTokens),
-            AnswerUniquenessAgent.CreateRepairer(chat, maxOutputTokens), rag);
+            AnswerUniquenessAgent.CreateRepairer(chat, maxOutputTokens), rag, uniquenessProgress);
         var factcheck = new FactCheckAgent.FactCheckExecutor(
             FactCheckAgent.CreateAgent(chat, maxOutputTokens),
             FactCheckAgent.CreateSingleItemAgent(chat, maxOutputTokens), rag);
