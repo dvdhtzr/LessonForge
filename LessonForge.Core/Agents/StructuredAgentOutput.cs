@@ -344,7 +344,9 @@ public static class StructuredAgentOutput
                             missing.Add($"questions[{index}].citations");
                     }
                 }
-                missing.AddRange(QuizAnswerOptionPolicy.InvalidFields(quiz));
+                foreach (var issue in QuizAnswerOptionPolicy.InvalidFields(quiz))
+                    if (!missing.Contains(issue, StringComparer.Ordinal))
+                        missing.Add(issue);
                 break;
 
             case FactCheckReviewOutput review:
