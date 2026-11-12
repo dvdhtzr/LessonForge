@@ -329,7 +329,13 @@ public static partial class AnswerUniquenessAgent
                         evidenceByIndex[index] = evidence;
                         var prompt = BuildReviewPrompt(plan, question, evidence, state.Request.AudienceAge);
                         var result = await StructuredAgentOutput.RunAsync<AnswerUniquenessReview>(
-                            reviewer, prompt, $"AnswerUniqueness Q{index + 1}", token);
+                            reviewer, prompt, $"AnswerUniqueness Q{index + 1}", token,
+                            inspectJsonForLocalEvaluation: trace is null ? null : new Action<string?>(raw =>
+                            {
+                                var preview = AnswerUniquenessTracePreview.Review(raw);
+                                if (preview is not null)
+                                    Emit("review_candidate", index, attempt, review: preview);
+                            }));
                         Emit("review_result", index, attempt, review: result);
                         return result;
                     }
@@ -351,7 +357,13 @@ public static partial class AnswerUniquenessAgent
                         var prompt = BuildRepairPrompt(plan, question, review,
                             evidenceByIndex[index], allowed, state.Request.QuizConfig.OptionCount);
                         var replacement = await StructuredAgentOutput.RunAsync<QuizOutput>(
-                            repairer, prompt, $"AnswerUniqueness repair Q{index + 1}", token);
+                            repairer, prompt, $"AnswerUniqueness repair Q{index + 1}", token,
+                            inspectJsonForLocalEvaluation: trace is null ? null : new Action<string?>(raw =>
+                            {
+                                var preview = AnswerUniquenessTracePreview.Replacement(raw);
+                                if (preview is not null)
+                                    Emit("repair_candidate", index, "replacement", question: preview);
+                            }));
                         // Snapshot before validation so rejected replacement content
                         // remains inspectable on a failed evaluation run.
                         if (replacement.Questions is { Count: > 0 })
