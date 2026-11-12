@@ -52,9 +52,14 @@ public static class StructuredAgentOutput
 
     public static async Task<T> RunAsync<T>(
         AIAgent agent, string prompt, string stage, CancellationToken ct = default,
-        string? authoritativeSingleTarget = null)
+        string? authoritativeSingleTarget = null,
+        Action<string?>? inspectJsonForLocalEvaluation = null)
     {
         var response = await agent.RunAsync(prompt, cancellationToken: ct);
+        // Explicitly opt-in only: permits a bounded structured diagnostic
+        // preview before strict schema/field validation rejects the response.
+        // Never log or persist the raw response here.
+        inspectJsonForLocalEvaluation?.Invoke(response.Text);
 
         // Never put model text into diagnostics: source material is untrusted, may be large,
         // and could leak into logs or the browser's error message.
