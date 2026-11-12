@@ -66,14 +66,29 @@ function parseFrame(frame){
  }
  return lines.length?{event,data:JSON.parse(lines.join('\n'))}:null
 }
+// Only host-owned progress codes are collected. This counts review and
+// replacement activity; it does not judge whether an AI verdict was correct.
+function uniquenessMetrics(events){
+ const steps=events.filter(e=>e.event==='progress'&&e.data?.stage==='AnswerUniqueness')
+ if(!steps.length)return null // older runs did not provide verifier telemetry
+ const statuses=steps.map(e=>e.data.status)
+ return {
+  verified:statuses.filter(s=>s==='accepted'||s==='repaired').length,
+  repairAttempts:statuses.filter(s=>s==='repair_requested').length,
+  repairsAccepted:statuses.filter(s=>s==='repaired').length,
+  unresolved:statuses.filter(s=>s==='unresolved').length
+ }
+}
 function summary(r){
  const lines=['# Small-model evaluation','','Result: STRUCTURAL_PASS is not evidence of factual accuracy.',
   'Interactive educator approval gates and optional perspectives are not covered.','',
-  '| Model | Case | Status | Seconds | Sources | Flags | AI-estimated coverage |',
-  '|---|---|---|---:|---:|---:|---:|']
+  '| Model | Case | Status | Seconds | Verified Q | Repair attempts | Repairs accepted | Sources | Flags | AI-estimated coverage |',
+  '|---|---|---|---:|---:|---:|---:|---:|---:|---:|']
  for(const x of r.runs){
   const a=x.assessment||{}
-  lines.push('| '+[x.model,x.caseId,x.status,x.seconds,a.sources??'—',a.flags??'—',
+  const u=x.uniqueness||{}
+  lines.push('| '+[x.model,x.caseId,x.status,x.seconds,u.verified??'—',
+   u.repairAttempts??'—',u.repairsAccepted??'—',a.sources??'—',a.flags??'—',
    a.estimatedCoverage==null?'—':Math.round(a.estimatedCoverage*100)+'%'].join(' | ')+' |')
  }
  return lines.join('\n')+'\n'
@@ -115,7 +130,8 @@ async function evaluate(base,request,minutes){
     if(!evt)continue
     if(evt.event==='complete')id=evt.data.id
     if(['error','aborted'].includes(evt.event))error=evt.event+': '+evt.data.message
-    if(['run','stage','error','aborted','gate'].includes(evt.event))events.push({
+    if(['run','stage','error','aborted','gate'].includes(evt.event)||
+       (evt.event==='progress'&&evt.data?.stage==='AnswerUniqueness'))events.push({
      seconds:Math.round((performance.now()-start)/1000),event:evt.event,data:evt.data})
    }
   }
@@ -132,7 +148,8 @@ async function evaluate(base,request,minutes){
  const assessment=stored?assess(stored,request):null
  return {status:error?'ERROR':assessment?.pass?'STRUCTURAL_PASS':'STRUCTURAL_FAIL',
   seconds:Math.round((performance.now()-start)/1000),
-  error:error??(assessment?null:'No persisted complete result.'),events,lessonId:id,assessment,storedLesson:stored}
+  error:error??(assessment?null:'No persisted complete result.'),events,
+  uniqueness:uniquenessMetrics(events),lessonId:id,assessment,storedLesson:stored}
 }
 async function main(){
  const o=argumentsFor(process.argv.slice(2))
@@ -204,4 +221,4 @@ async function main(){
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))
  main().catch(e=>{console.error(e);process.exitCode=1})
-export {assess,parseFrame,argumentsFor,summary}
+export {assess,parseFrame,argumentsFor,summary,uniquenessMetrics}
