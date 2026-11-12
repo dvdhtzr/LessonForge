@@ -177,6 +177,26 @@ public sealed class AnswerUniquenessTests
     }
 
     [Fact]
+    public async Task ProgressReportsOnlyHostOwnedQuestionNumbersAndCodes()
+    {
+        var statuses = new List<string>();
+        var attempts = 0;
+        await AnswerUniquenessPolicy.VerifyAndRepairAsync(
+            new QuizOutput { Questions = [Question()] }, 4,
+            (_, _, _) => Task.FromResult(++attempts == 1
+                ? Review(true, 0, 1) : Review(true, 0)),
+            (_, _, _, _) =>
+            {
+                var replacement = Question("Which town was Carmen Carrozza born in?");
+                replacement.Options = ["Solano", "Boston", "Paris", "Rome"];
+                return Task.FromResult(replacement);
+            },
+            onStatus: (index, status) => statuses.Add($"{index}:{status}"));
+
+        Assert.Equal(new[] { "0:repair_requested", "0:repaired" }, statuses);
+    }
+
+    [Fact]
     public void IndependentReviewPrompt_OmitsMarkedKeyAndExplanation()
     {
         var question = Question();
