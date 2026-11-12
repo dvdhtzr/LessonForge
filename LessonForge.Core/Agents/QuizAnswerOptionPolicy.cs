@@ -22,7 +22,8 @@ public static class QuizAnswerOptionPolicy
         for (var index = 0; index < quiz.Questions.Count; index++)
         {
             var question = quiz.Questions[index];
-            if (question?.Options is not { Count: > 0 } options) continue;
+            var options = question?.Options;
+            if (options is null || options.Count == 0) continue;
 
             if (question.CorrectIndex < 0 || question.CorrectIndex >= options.Count)
                 invalid.Add($"questions[{index}].correct_index");
