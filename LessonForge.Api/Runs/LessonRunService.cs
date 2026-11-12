@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
 using LessonForge.Api.Persistence;
+using LessonForge.Core.Agents;
 using LessonForge.Core.Configuration;
 using LessonForge.Core.Dto;
 using LessonForge.Core.Rag;
