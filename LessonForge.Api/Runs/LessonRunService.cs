@@ -105,7 +105,7 @@ public sealed class LessonRunService(
                     stage = "AnswerUniqueness", message,
                     questionNumber = update.QuestionNumber, status = update.Status
                 }, s_json);
-                session.Frames.Writer.TryWrite($"event: progress\\ndata: {payload}\\n\\n");
+                session.Frames.Writer.TryWrite($"event: progress\ndata: {payload}\n\n");
             }
 
             var (workflow, _) = LessonWorkflow.Build(
