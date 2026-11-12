@@ -170,5 +170,7 @@ public static partial class QuizGeneratorAgent
                     $"QuizGenerator question {i + 1} has {question?.Options?.Count ?? 0} options, " +
                     $"but {config.OptionCount} were requested.");
         }
+
+        QuizAnswerOptionPolicy.RequireValid(quiz);
     }
 }
