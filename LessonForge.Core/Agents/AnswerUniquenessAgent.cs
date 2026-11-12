@@ -268,7 +268,8 @@ public static partial class AnswerUniquenessAgent
 
     public sealed partial class AnswerUniquenessExecutor(
         AIAgent reviewer, AIAgent repairer, RagContext rag,
-        Action<AnswerUniquenessProgress>? progress = null) : Executor("AnswerUniqueness")
+        Action<AnswerUniquenessProgress>? progress = null,
+        Action<AnswerUniquenessTraceEvent>? trace = null) : Executor("AnswerUniqueness")
     {
         [MessageHandler]
         private async ValueTask<QuizOutput> HandleAsync(
@@ -286,37 +287,95 @@ public static partial class AnswerUniquenessAgent
                 rag.PerspectiveSession?.Citations ?? []).ToList();
             var allowed = string.Join("\n", knownSources.Select(s => $"- {s.Title}: {s.Url}"));
             var evidenceByIndex = new Dictionary<int, string>();
+            var replacementReady = new HashSet<int>();
+
+            // Opt-in trace stays out of SSE, normal ILogger messages and
+            // persisted lesson DTOs. The local host flushes every record.
+            void Emit(string kind, int index, string attempt,
+                QuizQuestion? question = null, AnswerUniquenessReview? review = null,
+                string? evidence = null, string? reason = null, string? failure = null)
+            {
+                trace?.Invoke(new AnswerUniquenessTraceEvent(
+                    kind, index + 1, attempt, question, review, evidence, reason, failure));
+            }
+
+            static string FailureCode(Exception ex, string phase)
+                => ex switch
+                {
+                    OperationCanceledException => "cancelled",
+                    InvalidOperationException => phase + "_invalid_or_unavailable",
+                    _ => phase + "_provider_or_runtime_failure"
+                };
 
             var verified = await AnswerUniquenessPolicy.VerifyAndRepairAsync(
                 quiz, state.Request.QuizConfig.OptionCount,
                 async (index, question, token) =>
                 {
-                    var queries = new[] { question.Stem, state.Request.Topic };
-                    var evidence = await RagPrompt.GatherEvidenceAsync(
-                        session, queries, perQuery: 1, maxSnippets: 4,
-                        maxCharsPerSnippet: 480, ct: token);
-                    if (evidence == "(no sources retrieved)")
-                        throw new InvalidOperationException(
-                            $"Answer uniqueness Q{index + 1} has no retrieved evidence.");
-                    evidenceByIndex[index] = evidence;
-                    var prompt = BuildReviewPrompt(plan, question, evidence, state.Request.AudienceAge);
-                    return await StructuredAgentOutput.RunAsync<AnswerUniquenessReview>(
-                        reviewer, prompt, $"AnswerUniqueness Q{index + 1}", token);
+                    var attempt = replacementReady.Contains(index) ? "replacement" : "original";
+                    Emit("review_started", index, attempt, question: question);
+                    try
+                    {
+                        var queries = new[] { question.Stem, state.Request.Topic };
+                        var evidence = await RagPrompt.GatherEvidenceAsync(
+                            session, queries, perQuery: 1, maxSnippets: 4,
+                            maxCharsPerSnippet: 480, ct: token);
+                        // The excerpt is exactly what this review receives,
+                        // bounded by the host writer, and includes source URLs.
+                        Emit("review_evidence", index, attempt, evidence: evidence);
+                        if (evidence == "(no sources retrieved)")
+                            throw new InvalidOperationException(
+                                $"Answer uniqueness Q{index + 1} has no retrieved evidence.");
+
+                        evidenceByIndex[index] = evidence;
+                        var prompt = BuildReviewPrompt(plan, question, evidence, state.Request.AudienceAge);
+                        var result = await StructuredAgentOutput.RunAsync<AnswerUniquenessReview>(
+                            reviewer, prompt, $"AnswerUniqueness Q{index + 1}", token);
+                        Emit("review_result", index, attempt, review: result);
+                        return result;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Do not include provider exceptions or raw model output:
+                        // those can contain source material or sensitive text.
+                        Emit("failure", index, attempt, failure: FailureCode(ex, "review"));
+                        throw;
+                    }
                 },
                 async (index, question, review, token) =>
                 {
-                    var prompt = BuildRepairPrompt(plan, question, review,
-                        evidenceByIndex[index], allowed, state.Request.QuizConfig.OptionCount);
-                    var replacement = await StructuredAgentOutput.RunAsync<QuizOutput>(
-                        repairer, prompt, $"AnswerUniqueness repair Q{index + 1}", token);
-                    QuizGeneratorAgent.ValidateCounts(replacement,
-                        new QuizConfig { QuestionCount = 1, OptionCount = state.Request.QuizConfig.OptionCount });
-                    foreach (var item in replacement.Questions)
-                        SourceCitationValidator.RequireRetrieved(item.Citations, knownSources,
-                            $"Answer uniqueness replacement Q{index + 1}");
-                    return replacement.Questions[0];
+                    const string attempt = "original";
+                    Emit("repair_started", index, attempt, question: question,
+                        review: review, reason: AnswerUniquenessPolicy.Problem(review, question));
+                    try
+                    {
+                        var prompt = BuildRepairPrompt(plan, question, review,
+                            evidenceByIndex[index], allowed, state.Request.QuizConfig.OptionCount);
+                        var replacement = await StructuredAgentOutput.RunAsync<QuizOutput>(
+                            repairer, prompt, $"AnswerUniqueness repair Q{index + 1}", token);
+                        // Snapshot before validation so rejected replacement content
+                        // remains inspectable on a failed evaluation run.
+                        if (replacement.Questions is { Count: > 0 })
+                            Emit("repair_output", index, "replacement", question: replacement.Questions[0]);
+                        QuizGeneratorAgent.ValidateCounts(replacement,
+                            new QuizConfig { QuestionCount = 1, OptionCount = state.Request.QuizConfig.OptionCount });
+                        foreach (var item in replacement.Questions)
+                            SourceCitationValidator.RequireRetrieved(item.Citations, knownSources,
+                                $"Answer uniqueness replacement Q{index + 1}");
+                        replacementReady.Add(index);
+                        return replacement.Questions[0];
+                    }
+                    catch (Exception ex)
+                    {
+                        Emit("failure", index, "replacement", failure: FailureCode(ex, "repair"));
+                        throw;
+                    }
                 }, cancellationToken,
-                (index, status) => progress?.Invoke(new AnswerUniquenessProgress(index + 1, status)));
+                (index, status) =>
+                {
+                    var attempt = status is "repaired" or "unresolved" ? "replacement" : "original";
+                    Emit("outcome", index, attempt, reason: status);
+                    progress?.Invoke(new AnswerUniquenessProgress(index + 1, status));
+                });
 
             // Only validated final questions may advance. The original quiz and
             // educator-approved lesson remain unchanged if any question fails.
