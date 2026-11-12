@@ -45,6 +45,14 @@ public static partial class FactCheckAgent
         warrants assessment_alignment at Q#, NOT duplicate section warnings.
         Don't fabricate opposing perspectives or mistake lack of a source excerpt
         for proof something was never taught: inputs are shortened.
+        For each targeted quiz question, independently evaluate EVERY answer option
+        against the stem and supplied evidence before checking the marked answer.
+        If two or more options are defensible (including nested locations or
+        equivalent wording), or none is correct, flag High assessment_alignment
+        and name the competing option indices. Incorrect distractors are intentional:
+        do NOT flag merely because they state something false.
+        Flag malformed or unintelligible question stems as assessment_alignment;
+        never equate a filled correct_index with an unambiguous question.
         Avoid repetition; prioritize substantive flaws; retain separate issues.
         Keep flags and explanations concise and fully finish JSON. Return [] when
         nothing is flagged. citation_coverage is an AI-estimated 0..1 fraction,
@@ -87,6 +95,13 @@ public static partial class FactCheckAgent
 
                 Every flag needs a short concrete claim, issue and specific
                 educator action. Do not invent citations, certainty or debate.
+                When the target is a quiz question, independently evaluate all
+                options against the stem and supplied evidence before trusting
+                the marked answer. If multiple choices are defensible (including
+                overlapping locations or equivalent terms), or none is correct,
+                flag High assessment_alignment and give their zero-based indices.
+                An incorrect distractor is intentional, NOT a factual error to
+                flag by itself. Flag malformed stems or unsupported answer keys.
                 Keep the entire JSON compact and complete. It is valid to
                 return flags=[] if there are no issues.
                 """, maxOutputTokens);
@@ -296,6 +311,15 @@ public static partial class FactCheckAgent
             brief fields (claim < 55 characters, issue/recommendation < 150 each,
             evidence < 110). Prefer the issues most important to an educator.
             A missing concept in a shortened lesson map is NOT proof it was never taught.
+            For EACH quiz target, first independently check the stem against ALL
+            options and the evidence, without assuming the marked key is right.
+            If more than one option can answer the question (including overlapping
+            geography, synonyms, or a true subset of another true option), or
+            none is correct, emit ONE High assessment_alignment finding naming the
+            zero-based competing indices. A wrong distractor is intentional; do
+            not flag the incorrect alternative merely for being false.
+            Also flag malformed stems, answer-key mismatch, and genuinely unsupported
+            claims. Do not replace quiz text or guess missing evidence.
             You may flag insufficient evidence, but do not assert certain absence
             unless the supplied material genuinely establishes it.
 
