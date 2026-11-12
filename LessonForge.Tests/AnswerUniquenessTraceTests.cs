@@ -143,4 +143,47 @@ public sealed class AnswerUniquenessTraceTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+    [Fact]
+    public void PrevalidationPreview_RecoversUsefulFieldsWithoutAcceptingInvalidModelOutput()
+    {
+        const string missingNotes = """
+            {
+              "stem_clear": true,
+              "option_verdicts": [
+                {"index":0,"verdict":"defensible","reason":"Named town."},
+                {"index":1,"verdict":"defensible","reason":"Enclosing region."}
+              ]
+            }
+            """;
+        var review = AnswerUniquenessTracePreview.Review(missingNotes);
+        Assert.NotNull(review);
+        Assert.Equal(2, review.OptionVerdicts.Count);
+        Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<AnswerUniquenessReview>(
+                missingNotes, "AnswerUniqueness Q1"));
+
+        const string missingCitations = """
+            {
+              "questions": [
+                {
+                  "stem": "Which town was the musician born in?",
+                  "options": ["Solano", "Rome", "Paris", "Boston"],
+                  "correct_index": 0,
+                  "explanation": "The musician was born in Solano."
+                }
+              ]
+            }
+            """;
+        var candidate = AnswerUniquenessTracePreview.Replacement(missingCitations);
+        Assert.NotNull(candidate);
+        Assert.Equal("Solano", candidate.Options[0]);
+        Assert.Empty(candidate.Citations);
+        Assert.Throws<InvalidOperationException>(() =>
+            StructuredAgentOutput.Parse<QuizOutput>(
+                missingCitations, "AnswerUniqueness repair Q1"));
+
+        Assert.Null(AnswerUniquenessTracePreview.Review("{invalid"));
+        Assert.Null(AnswerUniquenessTracePreview.Replacement("{invalid"));
+    }
+
 }
