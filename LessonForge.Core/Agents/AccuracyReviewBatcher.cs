@@ -6,8 +6,9 @@ namespace LessonForge.Core.Agents;
 
 /// <summary>
 /// Reviews every lesson section and quiz question in small, independently validated
-/// scopes. A truncated multi-item response or one with incomplete review fields
-/// is regenerated as independent smaller scopes. A one-item scope gets at most
+/// scopes. A truncated two-item response, one with incomplete review fields,
+/// or one with only out-of-scope locations is discarded and independently
+/// regenerated as smaller scopes. A one-item scope gets at most
 /// one full retry for missing/invalid required review fields; persistent failures
 /// fail closed. Only missing locations may be restored from host-owned context.
 /// </summary>
@@ -136,9 +137,25 @@ public static class AccuracyReviewBatcher
                         invalid.Add($"flags[{i}].location (outside {scope.Label})");
 
             if (invalid.Count > 0)
+            {
+                // A local model sometimes assigns a finding to Q3 while reviewing
+                // only Q1, Q2. Never re-label the finding or accept the batch:
+                // regenerate each target independently using host-owned IDs.
+                // Other invalid fields still fail closed, and a single target is
+                // never split/retried for an explicitly wrong location.
+                if (scope.ItemCount > 1 &&
+                    invalid.All(field => field.Contains("(outside ", StringComparison.Ordinal)))
+                {
+                    var (left, right) = scope.Split();
+                    var a = await RunScopeAsync(left, token);
+                    a.AddRange(await RunScopeAsync(right, token));
+                    return a;
+                }
+
                 throw new InvalidOperationException(
                     "Accuracy Editor returned invalid scoped review fields for " +
                     $"{scope.Label}: {string.Join(", ", invalid)}.");
+            }
 
             return [(scope, review)];
         }
