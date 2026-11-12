@@ -60,3 +60,6 @@ jobs:
 
       - name: Type-check & build
         run: npm run build
+
+      - name: Benchmark runner model-free tests
+        run: node --test ../scripts/benchmark-small-models.test.mjs
