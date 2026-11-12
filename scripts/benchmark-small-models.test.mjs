@@ -55,6 +55,6 @@ test('verifier telemetry measures repairs but never claims educational accuracy'
  const text=summary({runs:[{model:'qwen3:4b',caseId:'science',
   status:'STRUCTURAL_PASS',seconds:90,assessment:{},uniqueness:uniquenessMetrics(events)}]})
  assert.match(text,/Repair attempts/)
- assert.match(text,/2 \\| 1 \\| 1/)
+ assert.match(text,/2 \| 1 \| 1/)
  assert.equal(uniquenessMetrics([]),null)
 })
