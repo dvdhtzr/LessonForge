@@ -63,8 +63,9 @@ public sealed class AnswerUniquenessTraceWriter : IDisposable
             throw new InvalidOperationException("Diagnostic question number outside supported bounds.");
 
         // Only fixed, host-owned vocabulary can become record metadata.
-        if (incoming.Kind is not ("review_started" or "review_evidence" or "review_result"
-            or "repair_started" or "repair_output" or "outcome" or "failure"))
+        if (incoming.Kind is not ("review_started" or "review_evidence" or "review_candidate"
+            or "review_result" or "repair_started" or "repair_candidate"
+            or "repair_output" or "outcome" or "failure"))
             throw new InvalidOperationException("Unknown diagnostic event kind.");
         if (incoming.Attempt is not ("original" or "replacement"))
             throw new InvalidOperationException("Unknown diagnostic attempt.");
