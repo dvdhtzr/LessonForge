@@ -11,9 +11,9 @@
 
   <ItemGroup>
     <!-- Microsoft Agent Framework -->
-    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.27.0" />
-    <PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.27.0" />
-    <PackageReference Include="Microsoft.Agents.AI.Workflows.Generators" Version="1.27.0">
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.28.0" />
+    <PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.28.0" />
+    <PackageReference Include="Microsoft.Agents.AI.Workflows.Generators" Version="1.28.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
